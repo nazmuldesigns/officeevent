@@ -1,31 +1,34 @@
 /**
- * Gateflow — Google Apps Script backend
- * -------------------------------------
- * Bind this script to your registration spreadsheet (Extensions → Apps Script)
- * or paste the spreadsheet ID into SHEET_ID below for a standalone project.
+ * NRB World Event — Google Apps Script Backend (2-Day Event Edition)
+ * ------------------------------------------------------------------
+ * Supports 2-Day Event Pass Verification:
+ *  - Style 1: Day 1 Only Pass
+ *  - Style 2: Day 2 Only Pass
+ *  - Style 3: Both Days (All Access)
  *
- * Deploy: Deploy → New deployment → Type: Web app
+ * Supported Columns (Row 1):
+ * ID | Name | Country | Pass Type | Day 1 Entry | Day 1 Time | Day 2 Entry | Day 2 Time | Gate | Checked By
+ * (Also backwards-compatible with standard 8-column sheet)
+ *
+ * Web App Deployment Contract:
  *   Execute as: Me
  *   Who has access: Anyone
- *
- * Then paste the web app URL into Gateflow → Setup.
- *
- * Columns (row 1):
- * ID | Name | Country | Registration Status | Entry Status | Entry Time | Entry Gate | Checked By
  */
 
-const SHEET_ID = "108_Om2D_i_b4t_DxMEDoNmuMkWhS56aQHXz5HMp_rYA"; // NRB World Event Google Sheet
+const SHEET_ID = "108_Om2D_i_b4t_DxMEDoNmuMkWhS56aQHXz5HMp_rYA"; // NRB World Event Sheet
 const SHEET_NAME = "Registrations";
-const API_KEY = ""; // optional. If set, the app must send the same key.
+const API_KEY = ""; // Optional secret key
 
-const HEADERS = [
+const HEADERS_2DAY = [
   "ID",
   "Name",
   "Country",
-  "Registration Status",
-  "Entry Status",
-  "Entry Time",
-  "Entry Gate",
+  "Pass Type",
+  "Day 1 Entry",
+  "Day 1 Time",
+  "Day 2 Entry",
+  "Day 2 Time",
+  "Gate",
   "Checked By",
 ];
 
@@ -66,11 +69,17 @@ function dispatch_(action, params) {
     case "lookup":
       return lookup_(params.id);
     case "checkin":
-      return checkin_(params.id, params.gate, params.checkedBy);
+      return checkin_(params.id, params.gate, params.checkedBy, params.day);
     case "newEntry":
-      return newEntry_(params.id, params.name, params.country, params.gate, params.checkedBy);
-    case "setup":
-      return { ok: true, sheet: ensureSheet_().getName(), headers: HEADERS };
+      return newEntry_(
+        params.id,
+        params.name,
+        params.country,
+        params.passType,
+        params.gate,
+        params.checkedBy,
+        params.day,
+      );
     default:
       return { ok: false, error: "Unknown action: " + action, code: "config" };
   }
@@ -104,41 +113,97 @@ function lookup_(id) {
   return { ok: true, found: true, attendee: row.attendee };
 }
 
-function checkin_(id, gate, checkedBy) {
+function checkin_(id, gate, checkedBy, dayParam) {
   const key = normalizeId_(id);
   if (!key) return { ok: false, error: "Missing ID.", code: "config" };
+  const targetDay = Number(dayParam) === 2 ? 2 : 1;
 
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
     const found = findById_(key);
     if (!found) return { ok: true, result: "not_registered", id: key };
-    if (found.attendee.entryStatus === "ENTERED") {
-      return { ok: true, result: "already", attendee: found.attendee };
+
+    const attendee = found.attendee;
+    const pass = String(attendee.passType || "Both Days");
+
+    // Guard 1: Day validity
+    if (targetDay === 1 && pass === "Day 2 Only") {
+      return {
+        ok: true,
+        result: "invalid_day",
+        attendee: attendee,
+        reason: "This badge is valid for Day 2 only! Not permitted on Day 1.",
+      };
     }
+    if (targetDay === 2 && pass === "Day 1 Only") {
+      return {
+        ok: true,
+        result: "invalid_day",
+        attendee: attendee,
+        reason: "This badge was valid for Day 1 only! Expired for Day 2.",
+      };
+    }
+
+    // Guard 2: Already entered on target day
+    const alreadyEnteredToday =
+      targetDay === 1 ? attendee.day1Status === "ENTERED" : attendee.day2Status === "ENTERED";
+    if (alreadyEnteredToday) {
+      return { ok: true, result: "already", attendee: attendee };
+    }
+
     const stamp = serverTimestamp_();
     const sheet = found.sheet;
-    sheet.getRange(found.row, 5).setValue("ENTERED");
-    sheet.getRange(found.row, 6).setValue(stamp.display);
-    sheet.getRange(found.row, 7).setValue(gate || "");
-    sheet.getRange(found.row, 8).setValue(checkedBy || "");
+    const numCols = sheet.getLastColumn();
+
+    if (numCols >= 10) {
+      // 10-column 2-Day format:
+      // Col 5: Day 1 Entry, Col 6: Day 1 Time, Col 7: Day 2 Entry, Col 8: Day 2 Time, Col 9: Gate, Col 10: Checked By
+      if (targetDay === 1) {
+        sheet.getRange(found.row, 5).setValue("ENTERED");
+        sheet.getRange(found.row, 6).setValue(stamp.display);
+      } else {
+        sheet.getRange(found.row, 7).setValue("ENTERED");
+        sheet.getRange(found.row, 8).setValue(stamp.display);
+      }
+      sheet.getRange(found.row, 9).setValue(gate || "");
+      sheet.getRange(found.row, 10).setValue(checkedBy || "");
+    } else {
+      // Standard 8-column layout
+      sheet.getRange(found.row, 5).setValue("ENTERED");
+      sheet.getRange(found.row, 6).setValue(stamp.display);
+      sheet.getRange(found.row, 7).setValue(gate || "");
+      sheet.getRange(found.row, 8).setValue(checkedBy || "");
+    }
     SpreadsheetApp.flush();
-    const attendee = Object.assign({}, found.attendee, {
+
+    const updated = Object.assign({}, attendee, {
       entryStatus: "ENTERED",
       entryTime: stamp.iso,
       entryGate: gate || "",
       checkedBy: checkedBy || "",
     });
-    return { ok: true, result: "verified", attendee: attendee };
+    if (targetDay === 1) {
+      updated.day1Status = "ENTERED";
+      updated.day1Time = stamp.iso;
+    } else {
+      updated.day2Status = "ENTERED";
+      updated.day2Time = stamp.iso;
+    }
+
+    return { ok: true, result: "verified", attendee: updated };
   } finally {
     lock.releaseLock();
   }
 }
 
-function newEntry_(id, name, country, gate, checkedBy) {
+function newEntry_(id, name, country, passTypeParam, gate, checkedBy, dayParam) {
   const key = normalizeId_(id);
   const person = String(name || "").trim();
   const from = String(country || "").trim();
+  const pass = String(passTypeParam || "Both Days");
+  const targetDay = Number(dayParam) === 2 ? 2 : 1;
+
   if (!key || !person || !from) {
     return { ok: false, error: "ID, name, and country are required.", code: "config" };
   }
@@ -147,40 +212,41 @@ function newEntry_(id, name, country, gate, checkedBy) {
   lock.waitLock(15000);
   try {
     const found = findById_(key);
-    if (found && found.attendee.entryStatus === "ENTERED") {
-      return { ok: true, result: "already", attendee: found.attendee };
+    if (found) {
+      return checkin_(key, gate, checkedBy, targetDay);
     }
+
     const stamp = serverTimestamp_();
     const sheet = ensureSheet_();
-    if (found) {
-      sheet.getRange(found.row, 2).setValue(person);
-      sheet.getRange(found.row, 3).setValue(from);
-      sheet.getRange(found.row, 5).setValue("ENTERED");
-      sheet.getRange(found.row, 6).setValue(stamp.display);
-      sheet.getRange(found.row, 7).setValue(gate || "");
-      sheet.getRange(found.row, 8).setValue(checkedBy || "");
-      SpreadsheetApp.flush();
-      const attendee = Object.assign({}, found.attendee, {
-        name: person,
-        country: from,
-        entryStatus: "ENTERED",
-        entryTime: stamp.iso,
-        entryGate: gate || "",
-        checkedBy: checkedBy || "",
-      });
-      return { ok: true, result: "verified", attendee: attendee };
+    const numCols = sheet.getLastColumn();
+
+    if (numCols >= 10) {
+      sheet.appendRow([
+        key,
+        person,
+        from,
+        pass,
+        targetDay === 1 ? "ENTERED" : "NOT ENTERED",
+        targetDay === 1 ? stamp.display : "",
+        targetDay === 2 ? "ENTERED" : "NOT ENTERED",
+        targetDay === 2 ? stamp.display : "",
+        gate || "",
+        checkedBy || "",
+      ]);
+    } else {
+      sheet.appendRow([
+        key,
+        person,
+        from,
+        pass,
+        "ENTERED",
+        stamp.display,
+        gate || "",
+        checkedBy || "",
+      ]);
     }
-    sheet.appendRow([
-      key,
-      person,
-      from,
-      "NEW ENTRY",
-      "ENTERED",
-      stamp.display,
-      gate || "",
-      checkedBy || "",
-    ]);
     SpreadsheetApp.flush();
+
     return {
       ok: true,
       result: "verified",
@@ -188,9 +254,14 @@ function newEntry_(id, name, country, gate, checkedBy) {
         id: key,
         name: person,
         country: from,
+        passType: pass,
         registrationStatus: "NEW ENTRY",
         entryStatus: "ENTERED",
         entryTime: stamp.iso,
+        day1Status: targetDay === 1 ? "ENTERED" : "NOT ENTERED",
+        day1Time: targetDay === 1 ? stamp.iso : null,
+        day2Status: targetDay === 2 ? "ENTERED" : "NOT ENTERED",
+        day2Time: targetDay === 2 ? stamp.iso : null,
         entryGate: gate || "",
         checkedBy: checkedBy || "",
       },
@@ -213,16 +284,12 @@ function ensureSheet_() {
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
   }
-  const lastCol = Math.max(sheet.getLastColumn(), HEADERS.length);
-  const header = sheet.getRange(1, 1, 1, HEADERS.length).getValues()[0];
+  const header = sheet.getRange(1, 1, 1, sheet.getLastColumn() || 1).getValues()[0];
   const missing = !header[0] || String(header[0]).toUpperCase() !== "ID";
   if (missing) {
-    sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
-    sheet.getRange(1, 1, 1, HEADERS.length).setFontWeight("bold");
+    sheet.getRange(1, 1, 1, HEADERS_2DAY.length).setValues([HEADERS_2DAY]);
+    sheet.getRange(1, 1, 1, HEADERS_2DAY.length).setFontWeight("bold");
     sheet.setFrozenRows(1);
-  }
-  if (lastCol) {
-    /* keep existing extra columns untouched */
   }
   return sheet;
 }
@@ -230,8 +297,9 @@ function ensureSheet_() {
 function readAll_() {
   const sheet = ensureSheet_();
   const lastRow = sheet.getLastRow();
+  const lastCol = Math.max(8, sheet.getLastColumn());
   if (lastRow < 2) return [];
-  const values = sheet.getRange(2, 1, lastRow - 1, 8).getValues();
+  const values = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
   const out = [];
   for (let i = 0; i < values.length; i++) {
     const attendee = rowToAttendee_(values[i]);
@@ -243,8 +311,9 @@ function readAll_() {
 function findById_(id) {
   const sheet = ensureSheet_();
   const lastRow = sheet.getLastRow();
+  const lastCol = Math.max(8, sheet.getLastColumn());
   if (lastRow < 2) return null;
-  const values = sheet.getRange(2, 1, lastRow - 1, 8).getValues();
+  const values = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
   for (let i = 0; i < values.length; i++) {
     const attendee = rowToAttendee_(values[i]);
     if (attendee && attendee.id === id) {
@@ -257,18 +326,61 @@ function findById_(id) {
 function rowToAttendee_(row) {
   const id = normalizeId_(row[0]);
   if (!id) return null;
-  const registration = String(row[3] || "REGISTERED").toUpperCase();
-  const entry = String(row[4] || "NOT ENTERED").toUpperCase();
+
+  const rawCol3 = String(row[3] || "").trim();
+  const pass = parsePassType_(rawCol3);
+
+  let d1Status = "NOT ENTERED";
+  let d1Time = "";
+  let d2Status = "NOT ENTERED";
+  let d2Time = "";
+  let gate = "";
+  let checkedBy = "";
+
+  if (row.length >= 10) {
+    d1Status = String(row[4] || "").toUpperCase() === "ENTERED" ? "ENTERED" : "NOT ENTERED";
+    d1Time = formatCellTime_(row[5]);
+    d2Status = String(row[6] || "").toUpperCase() === "ENTERED" ? "ENTERED" : "NOT ENTERED";
+    d2Time = formatCellTime_(row[7]);
+    gate = row[8] ? String(row[8]) : "";
+    checkedBy = row[9] ? String(row[9]) : "";
+  } else {
+    // 8-column layout
+    const entered = String(row[4] || "").toUpperCase() === "ENTERED";
+    d1Status = entered ? "ENTERED" : "NOT ENTERED";
+    d1Time = formatCellTime_(row[5]);
+    gate = row[6] ? String(row[6]) : "";
+    checkedBy = row[7] ? String(row[7]) : "";
+  }
+
+  const overallEntered = d1Status === "ENTERED" || d2Status === "ENTERED";
+
   return {
     id: id,
     name: String(row[1] || "").trim(),
     country: String(row[2] || "").trim(),
-    registrationStatus: registration === "NEW ENTRY" ? "NEW ENTRY" : "REGISTERED",
-    entryStatus: entry === "ENTERED" ? "ENTERED" : "NOT ENTERED",
-    entryTime: formatCellTime_(row[5]),
-    entryGate: row[6] ? String(row[6]) : "",
-    checkedBy: row[7] ? String(row[7]) : "",
+    passType: pass,
+    registrationStatus: "REGISTERED",
+    entryStatus: overallEntered ? "ENTERED" : "NOT ENTERED",
+    entryTime: d2Time || d1Time,
+    day1Status: d1Status,
+    day1Time: d1Time,
+    day2Status: d2Status,
+    day2Time: d2Time,
+    entryGate: gate,
+    checkedBy: checkedBy,
   };
+}
+
+function parsePassType_(val) {
+  const s = String(val || "").toLowerCase();
+  if (s.indexOf("1") !== -1 && s.indexOf("2") === -1 && s.indexOf("both") === -1) {
+    return "Day 1 Only";
+  }
+  if (s.indexOf("2") !== -1 && s.indexOf("1") === -1 && s.indexOf("both") === -1) {
+    return "Day 2 Only";
+  }
+  return "Both Days";
 }
 
 function formatCellTime_(value) {

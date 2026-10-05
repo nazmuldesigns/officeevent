@@ -2,15 +2,17 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Barcode,
+  Calendar,
   LayoutDashboard,
   Moon,
   ScanLine,
   Settings2,
   Sun,
+  Users,
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { Toaster } from "sonner";
+import { Toaster, toast } from "sonner";
 import { unlockAudio } from "@/lib/audio/sounds";
 import { APP_NAME } from "@/lib/constants";
 import { syncRegistry, useRegistry, useSettings } from "@/lib/store";
@@ -18,6 +20,7 @@ import { cn } from "@/lib/utils";
 
 const NAV = [
   { to: "/", label: "Check-in", icon: ScanLine },
+  { to: "/directory", label: "Directory", icon: Users },
   { to: "/generator", label: "Barcodes", icon: Barcode },
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
 ] as const;
@@ -28,6 +31,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const soundEnabled = useSettings((s) => s.soundEnabled);
   const setSoundEnabled = useSettings((s) => s.setSoundEnabled);
   const gate = useSettings((s) => s.gate);
+  const eventDay = useSettings((s) => s.eventDay);
+  const setEventDay = useSettings((s) => s.setEventDay);
   const syncStatus = useRegistry((s) => s.syncStatus);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [logoLoaded, setLogoLoaded] = useState(true);
@@ -90,12 +95,27 @@ export function AppShell({ children }: { children: ReactNode }) {
                   {gate}
                 </span>
                 <span>·</span>
-                <span className="font-semibold text-emerald-400">Live Sheet Connected</span>
+                <span className="font-semibold text-emerald-400">Sheet Connected</span>
               </span>
             </div>
           </Link>
 
           <div className="ml-auto flex items-center gap-1.5">
+            {/* Quick Event Day Badge */}
+            <button
+              type="button"
+              onClick={() => {
+                const nextDay = eventDay === 1 ? 2 : 1;
+                setEventDay(nextDay);
+                toast.success(`Active Day switched to Day ${nextDay}`);
+              }}
+              className="inline-flex items-center gap-1 rounded-full border border-sky-500/35 bg-sky-500/15 px-2.5 py-1 text-[11px] font-bold text-sky-400 hover:bg-sky-500/25 active:scale-95 transition-all"
+              title="Click to toggle between Event Day 1 and Day 2"
+            >
+              <Calendar className="size-3" />
+              <span>Day {eventDay}</span>
+            </button>
+
             <SyncChip status={syncStatus} />
 
             <button
@@ -148,8 +168,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         {children}
       </main>
 
+      {/* 4-Tab Bottom Navigation Bar */}
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-border/80 bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
-        <div className="mx-auto grid max-w-3xl grid-cols-3 gap-2 px-3 py-2">
+        <div className="mx-auto grid max-w-3xl grid-cols-4 gap-1.5 px-2.5 py-2">
           {NAV.map((item) => {
             const active = pathname === item.to;
             const Icon = item.icon;
@@ -191,7 +212,7 @@ function SyncChip({ status }: { status: string }) {
     status === "syncing"
       ? "Syncing…"
       : status === "ok"
-        ? "Live Sheet"
+        ? "Live"
         : status === "error"
           ? "Sync Error"
           : status === "offline"

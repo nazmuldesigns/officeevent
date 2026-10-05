@@ -7,7 +7,9 @@ import type {
   CheckinResult,
   ConnectionMode,
   DashboardStats,
+  EventDay,
   Gate,
+  PassType,
   SyncStatus,
 } from "@/lib/types";
 import { GATES } from "@/lib/types";
@@ -19,12 +21,14 @@ export type SettingsState = {
   mode: ConnectionMode;
   gate: Gate;
   staffName: string;
+  eventDay: EventDay;
   soundEnabled: boolean;
   theme: "dark" | "light";
   setScriptUrl: (value: string) => void;
   setApiKey: (value: string) => void;
   setGate: (value: Gate) => void;
   setStaffName: (value: string) => void;
+  setEventDay: (value: EventDay) => void;
   setSoundEnabled: (value: boolean) => void;
   setTheme: (value: "dark" | "light") => void;
 };
@@ -37,16 +41,18 @@ export const useSettings = create<SettingsState>()(
       mode: "live",
       gate: "Gate 1",
       staffName: "",
+      eventDay: 1,
       soundEnabled: true,
       theme: "dark",
       setScriptUrl: (scriptUrl) => set({ scriptUrl }),
       setApiKey: (apiKey) => set({ apiKey }),
       setGate: (gate) => set({ gate }),
       setStaffName: (staffName) => set({ staffName }),
+      setEventDay: (eventDay) => set({ eventDay }),
       setSoundEnabled: (soundEnabled) => set({ soundEnabled }),
       setTheme: (theme) => set({ theme }),
     }),
-    { name: "nrb-world-settings-v3" },
+    { name: "nrb-world-settings-v4" },
   ),
 );
 
@@ -75,7 +81,7 @@ export const useRegistry = create<RegistryState>((set, get) => ({
     set({
       attendees: rows,
       recent: rows
-        .filter((row) => row.entryStatus === "ENTERED" && row.entryTime)
+        .filter((row) => (row.day1Status === "ENTERED" || row.day2Status === "ENTERED") && row.entryTime)
         .sort((a, b) => (b.entryTime ?? "").localeCompare(a.entryTime ?? ""))
         .slice(0, 30),
     }),
@@ -109,12 +115,30 @@ function liveConfig(): LiveConfig {
   };
 }
 
-export function computeStats(attendees: Attendee[]): DashboardStats {
-  const checkedIn = attendees.filter((row) => row.entryStatus === "ENTERED").length;
+export function computeStats(attendees: Attendee[], activeDay: EventDay = 1): DashboardStats {
+  const day1CheckedIn = attendees.filter((row) => row.day1Status === "ENTERED").length;
+  const day2CheckedIn = attendees.filter((row) => row.day2Status === "ENTERED").length;
+  const activeDayCheckedIn = activeDay === 1 ? day1CheckedIn : day2CheckedIn;
+
+  const bothDaysPasses = attendees.filter((row) => row.passType === "Both Days").length;
+  const day1OnlyPasses = attendees.filter((row) => row.passType === "Day 1 Only").length;
+  const day2OnlyPasses = attendees.filter((row) => row.passType === "Day 2 Only").length;
+
+  const eligibleForActiveDay = attendees.filter((row) =>
+    activeDay === 1
+      ? row.passType === "Day 1 Only" || row.passType === "Both Days"
+      : row.passType === "Day 2 Only" || row.passType === "Both Days",
+  ).length;
+
   return {
     totalRegistered: attendees.length,
-    checkedIn,
-    remaining: Math.max(0, attendees.length - checkedIn),
+    day1CheckedIn,
+    day2CheckedIn,
+    activeDayCheckedIn,
+    bothDaysPasses,
+    day1OnlyPasses,
+    day2OnlyPasses,
+    remaining: Math.max(0, eligibleForActiveDay - activeDayCheckedIn),
     newEntries: attendees.filter((row) => row.registrationStatus === "NEW ENTRY").length,
   };
 }
@@ -166,7 +190,7 @@ function fromCache(id: string): Attendee | undefined {
 }
 
 /**
- * Real-time check-in with Google Sheets backend.
+ * Real-time 2-Day check-in verification with pass validation guard.
  */
 export async function verifyAndCheckIn(rawId: string): Promise<CheckinResult> {
   const id = normalizeId(rawId);
@@ -178,18 +202,42 @@ export async function verifyAndCheckIn(rawId: string): Promise<CheckinResult> {
   }
 
   useRegistry.getState().markInflight(id, true);
-  const { gate, staffName } = useSettings.getState();
+  const { gate, staffName, eventDay } = useSettings.getState();
 
   try {
     const cached = fromCache(id);
-    if (cached?.entryStatus === "ENTERED") {
-      return { kind: "already", attendee: cached };
+    if (cached) {
+      // Validate pass type against current event day
+      if (eventDay === 1 && cached.passType === "Day 2 Only") {
+        return {
+          kind: "invalid_day",
+          attendee: cached,
+          currentDay: 1,
+          reason: "This badge is valid for Day 2 only! Not permitted on Day 1.",
+        };
+      }
+      if (eventDay === 2 && cached.passType === "Day 1 Only") {
+        return {
+          kind: "invalid_day",
+          attendee: cached,
+          currentDay: 2,
+          reason: "This badge was valid for Day 1 only! Expired for Day 2.",
+        };
+      }
+
+      // Check if already checked in for active day
+      const alreadyToday =
+        eventDay === 1 ? cached.day1Status === "ENTERED" : cached.day2Status === "ENTERED";
+      if (alreadyToday) {
+        return { kind: "already", attendee: cached, day: eventDay };
+      }
     }
 
     const written = await sheetsBackend.checkIn(liveConfig(), {
       id,
       gate: gate || "Gate 1",
       checkedBy: staffName || "Staff",
+      day: eventDay,
     });
 
     if (!written.ok) {
@@ -200,15 +248,25 @@ export async function verifyAndCheckIn(rawId: string): Promise<CheckinResult> {
       return { kind: "missing", id };
     }
 
+    if (written.result === "invalid_day" && written.attendee) {
+      useRegistry.getState().upsert(written.attendee);
+      return {
+        kind: "invalid_day",
+        attendee: written.attendee,
+        currentDay: eventDay,
+        reason: written.reason || `Pass not valid for Day ${eventDay}`,
+      };
+    }
+
     if (written.result === "already" && written.attendee) {
       useRegistry.getState().upsert(written.attendee);
-      return { kind: "already", attendee: written.attendee };
+      return { kind: "already", attendee: written.attendee, day: eventDay };
     }
 
     if (written.result === "verified" && written.attendee) {
       useRegistry.getState().upsert(written.attendee);
       useRegistry.getState().pushRecent(written.attendee);
-      return { kind: "verified", attendee: written.attendee };
+      return { kind: "verified", attendee: written.attendee, day: eventDay };
     }
 
     return {
@@ -226,36 +284,42 @@ export async function addAndCheckIn(input: {
   id: string;
   name: string;
   country: string;
+  passType: PassType;
 }): Promise<CheckinResult> {
   const id = normalizeId(input.id);
   const name = input.name.trim();
   const country = input.country.trim();
+  const passType = input.passType || "Both Days";
+
   if (!id || !name || !country) {
     return { kind: "error", id: input.id, message: "ID, name, and country are required." };
   }
 
-  const { gate, staffName } = useSettings.getState();
+  const { gate, staffName, eventDay } = useSettings.getState();
   useRegistry.getState().markInflight(id, true);
+
   try {
     const written = await sheetsBackend.newEntry(liveConfig(), {
       id,
       name,
       country,
+      passType,
       gate: gate || "Gate 1",
       checkedBy: staffName || "Staff",
+      day: eventDay,
     });
 
     if (!written.ok) return { kind: "error", id, message: written.error };
 
     if (written.result === "already" && written.attendee) {
       useRegistry.getState().upsert(written.attendee);
-      return { kind: "already", attendee: written.attendee };
+      return { kind: "already", attendee: written.attendee, day: eventDay };
     }
 
     if (written.result === "verified" && written.attendee) {
       useRegistry.getState().upsert(written.attendee);
       useRegistry.getState().pushRecent(written.attendee);
-      return { kind: "verified", attendee: written.attendee };
+      return { kind: "verified", attendee: written.attendee, day: eventDay };
     }
 
     return { kind: "error", id, message: "Google Sheets did not confirm the new entry." };

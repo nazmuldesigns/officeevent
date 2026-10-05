@@ -1,11 +1,12 @@
 import { useState, type FormEvent, type ReactNode } from "react";
-import { UserPlus, X, Check, LoaderCircle, Globe, User, Hash } from "lucide-react";
+import { UserPlus, X, Check, LoaderCircle, Globe, User, Hash, Ticket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { COUNTRIES } from "@/lib/constants";
 import { addAndCheckIn } from "@/lib/store";
-import type { CheckinResult } from "@/lib/types";
+import type { CheckinResult, PassType } from "@/lib/types";
+import { PASS_TYPES } from "@/lib/types";
 import { normalizeId } from "@/lib/utils";
 
 export function NewEntryForm({
@@ -20,6 +21,7 @@ export function NewEntryForm({
   const [id, setId] = useState(normalizeId(initialId));
   const [name, setName] = useState("");
   const [country, setCountry] = useState("Bangladesh");
+  const [passType, setPassType] = useState<PassType>("Both Days");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,7 +34,12 @@ export function NewEntryForm({
       return;
     }
     setBusy(true);
-    const result = await addAndCheckIn({ id: cleanedId, name: name.trim(), country: country.trim() });
+    const result = await addAndCheckIn({
+      id: cleanedId,
+      name: name.trim(),
+      country: country.trim(),
+      passType,
+    });
     setBusy(false);
     if (result.kind === "error") {
       setError(result.message);
@@ -86,21 +93,37 @@ export function NewEntryForm({
           />
         </Field>
 
-        <Field label="Country / Origin" icon={<Globe className="size-3.5 text-primary" />}>
-          <Input
-            value={country}
-            list="gateflow-countries"
-            placeholder="Select or type country"
-            className="h-11 text-base font-medium"
-            onChange={(event) => setCountry(event.target.value)}
-            required
-          />
-          <datalist id="gateflow-countries">
-            {COUNTRIES.map((item) => (
-              <option key={item} value={item} />
-            ))}
-          </datalist>
-        </Field>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Country / Origin" icon={<Globe className="size-3.5 text-primary" />}>
+            <Input
+              value={country}
+              list="gateflow-countries"
+              placeholder="Select or type country"
+              className="h-11 text-base font-medium"
+              onChange={(event) => setCountry(event.target.value)}
+              required
+            />
+            <datalist id="gateflow-countries">
+              {COUNTRIES.map((item) => (
+                <option key={item} value={item} />
+              ))}
+            </datalist>
+          </Field>
+
+          <Field label="Pass Category" icon={<Ticket className="size-3.5 text-primary" />}>
+            <select
+              value={passType}
+              onChange={(e) => setPassType(e.target.value as PassType)}
+              className="h-11 w-full rounded-xl border border-border/80 bg-muted px-3 text-sm font-semibold shadow-inner focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              {PASS_TYPES.map((pt) => (
+                <option key={pt} value={pt}>
+                  {pt === "Both Days" ? "Both Days (All Access)" : pt}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
       </div>
 
       {error ? (

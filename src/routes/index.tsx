@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useState } from "react";
-import { ShieldCheck, Sparkles } from "lucide-react";
+import { Calendar, ShieldCheck, Sun, Moon } from "lucide-react";
 import { NewEntryForm } from "@/components/checkin/new-entry-form";
 import { ResultOverlay } from "@/components/checkin/result-overlay";
 import { ScannerView } from "@/components/checkin/scanner-view";
@@ -20,6 +20,8 @@ function CheckinPage() {
   const [phase, setPhase] = useState<Phase>({ name: "scan" });
   const soundEnabled = useSettings((s) => s.soundEnabled);
   const gate = useSettings((s) => s.gate);
+  const eventDay = useSettings((s) => s.eventDay);
+  const setEventDay = useSettings((s) => s.setEventDay);
 
   const handleScan = useCallback(
     async (id: string) => {
@@ -29,6 +31,7 @@ function CheckinPage() {
       const result = await verifyAndCheckIn(id);
       if (result.kind === "verified") playSound("verified", soundEnabled);
       else if (result.kind === "already") playSound("already", soundEnabled);
+      else if (result.kind === "invalid_day") playSound("invalid_day", soundEnabled);
       else if (result.kind === "missing") playSound("missing", soundEnabled);
       else playSound("error", soundEnabled);
       setPhase({ name: "result", result });
@@ -42,18 +45,31 @@ function CheckinPage() {
 
   return (
     <div className="space-y-4">
-      <header className="flex flex-col gap-1 px-1">
-        <div className="flex items-center justify-between">
+      <header className="flex flex-col gap-2 px-1">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
             Attendee Check-in
           </h1>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
-            <ShieldCheck className="size-3.5" />
-            <span>Station: {gate}</span>
-          </span>
+          <div className="flex items-center gap-2">
+            {/* Event Day Quick Switcher */}
+            <button
+              type="button"
+              onClick={() => setEventDay(eventDay === 1 ? 2 : 1)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/40 bg-sky-500/15 px-3 py-1 text-xs font-bold text-sky-400 shadow-sm transition-all duration-150 hover:bg-sky-500/25 active:scale-95"
+              title="Click to switch active event day"
+            >
+              <Calendar className="size-3.5" />
+              <span>Active: Day {eventDay}</span>
+            </button>
+
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+              <ShieldCheck className="size-3.5" />
+              <span>{gate}</span>
+            </span>
+          </div>
         </div>
         <p className="max-w-md text-xs leading-relaxed text-muted-foreground sm:text-sm">
-          Point camera at Code 128 badge or type ID for instant verification.
+          Point camera at Code 128 badge or type ID for instant verification. Validated against Day {eventDay} pass rules.
         </p>
       </header>
 
@@ -74,6 +90,7 @@ function CheckinPage() {
           onDone={(result) => {
             if (result.kind === "verified") playSound("verified", soundEnabled);
             else if (result.kind === "already") playSound("already", soundEnabled);
+            else if (result.kind === "invalid_day") playSound("invalid_day", soundEnabled);
             else playSound("error", soundEnabled);
             setPhase({ name: "result", result });
           }}

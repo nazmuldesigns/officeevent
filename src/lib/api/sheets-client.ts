@@ -15,6 +15,13 @@ function withParams(base: string, params: Record<string, string>): string {
   return url.toString();
 }
 
+function parsePassType(val: unknown): PassType {
+  const s = String(val ?? "").toLowerCase().trim();
+  if (s.includes("1") && !s.includes("2") && !s.includes("both")) return "Day 1 Only";
+  if (s.includes("2") && !s.includes("1") && !s.includes("both")) return "Day 2 Only";
+  return "Both Days";
+}
+
 function asAttendee(raw: unknown): Attendee | null {
   if (!raw || typeof raw !== "object") return null;
   const row = raw as Record<string, unknown>;
@@ -24,17 +31,31 @@ function asAttendee(raw: unknown): Attendee | null {
     String(row.registrationStatus ?? "REGISTERED").toUpperCase() === "NEW ENTRY"
       ? "NEW ENTRY"
       : "REGISTERED";
-  const entryStatus =
-    String(row.entryStatus ?? "NOT ENTERED").toUpperCase() === "ENTERED"
+
+  const passType = parsePassType(row.passType || row.pass || row.ticketType || row.type);
+
+  const d1 =
+    String(row.day1Status ?? row.entryStatus ?? "NOT ENTERED").toUpperCase() === "ENTERED"
       ? "ENTERED"
       : "NOT ENTERED";
+  const d2 = String(row.day2Status ?? "NOT ENTERED").toUpperCase() === "ENTERED"
+    ? "ENTERED"
+    : "NOT ENTERED";
+  const d1Time = row.day1Time ? String(row.day1Time) : (row.entryTime ? String(row.entryTime) : null);
+  const d2Time = row.day2Time ? String(row.day2Time) : null;
+
   return {
     id,
     name: String(row.name ?? "").trim(),
     country: String(row.country ?? "").trim(),
+    passType,
     registrationStatus,
-    entryStatus,
-    entryTime: row.entryTime ? String(row.entryTime) : null,
+    entryStatus: d1 === "ENTERED" || d2 === "ENTERED" ? "ENTERED" : "NOT ENTERED",
+    entryTime: d2Time || d1Time,
+    day1Status: d1,
+    day1Time: d1Time,
+    day2Status: d2,
+    day2Time: d2Time,
     entryGate: row.entryGate ? String(row.entryGate) : null,
     checkedBy: row.checkedBy ? String(row.checkedBy) : null,
   };
@@ -196,23 +217,27 @@ export const sheetsBackend = {
 
   async checkIn(
     config: LiveConfig,
-    input: { id: string; gate: string; checkedBy: string },
+    input: { id: string; gate: string; checkedBy: string; day: EventDay },
   ) {
-    const result = await gasGet<{ result: string; attendee?: unknown; id?: string }>(
-      config,
-      {
-        action: "checkin",
-        id: input.id,
-        gate: input.gate,
-        checkedBy: input.checkedBy,
-      },
-    );
+    const result = await gasGet<{
+      result: string;
+      attendee?: unknown;
+      id?: string;
+      reason?: string;
+    }>(config, {
+      action: "checkin",
+      id: input.id,
+      gate: input.gate,
+      checkedBy: input.checkedBy,
+      day: String(input.day),
+    });
     if (!result.ok) return result;
     return {
       ok: true as const,
-      result: result.result as "verified" | "already" | "not_registered",
+      result: result.result as "verified" | "already" | "invalid_day" | "not_registered",
       attendee: result.attendee ? asAttendee(result.attendee) : null,
       id: result.id,
+      reason: result.reason,
     };
   },
 
@@ -222,8 +247,10 @@ export const sheetsBackend = {
       id: string;
       name: string;
       country: string;
+      passType: PassType;
       gate: string;
       checkedBy: string;
+      day: EventDay;
     },
   ) {
     const result = await gasGet<{ result: string; attendee?: unknown }>(config, {
@@ -231,8 +258,10 @@ export const sheetsBackend = {
       id: input.id,
       name: input.name,
       country: input.country,
+      passType: input.passType,
       gate: input.gate,
       checkedBy: input.checkedBy,
+      day: String(input.day),
     });
     if (!result.ok) return result;
     return {

@@ -1,30 +1,30 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import JSZip from "jszip";
 import { toast } from "sonner";
 import {
-  CheckCircle2,
+  Calendar,
   Database,
-  Download,
   KeyRound,
   Link as LinkIcon,
   Lock,
   Moon,
+  Radio,
   Settings,
   ShieldCheck,
   Sun,
   Unlock,
+  Volume2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ADMIN_LOCK_PIN, DEFAULT_SCRIPT_URL } from "@/lib/constants";
+import { playSound, unlockAudio } from "@/lib/audio/sounds";
 import {
   syncRegistry,
   testConnection,
   useSettings,
 } from "@/lib/store";
-import { downloadBlob } from "@/lib/utils";
-import { GATES } from "@/lib/types";
+import { GATES, type EventDay } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/setup")({ component: SetupPage });
@@ -40,6 +40,10 @@ function SetupPage() {
   const setGate = useSettings((s) => s.setGate);
   const staffName = useSettings((s) => s.staffName);
   const setStaffName = useSettings((s) => s.setStaffName);
+  const eventDay = useSettings((s) => s.eventDay);
+  const setEventDay = useSettings((s) => s.setEventDay);
+  const soundEnabled = useSettings((s) => s.soundEnabled);
+  const setSoundEnabled = useSettings((s) => s.setSoundEnabled);
 
   const [busy, setBusy] = useState(false);
   const [isUnlocked, setIsUnlocked] = useState(false);
@@ -64,45 +68,16 @@ function SetupPage() {
       setIsUnlocked(true);
       setShowPinModal(false);
       setPinInput("");
-      toast.success("Configuration Unlocked!");
+      toast.success("Endpoint Configuration Unlocked!");
     } else {
       toast.error("Incorrect Admin PIN! Access denied.");
     }
   }
 
-  async function downloadPack() {
-    const [code, manifest, csv] = await Promise.all([
-      fetch("/setup/Code.gs").then((res) => res.text()).catch(() => ""),
-      fetch("/setup/appsscript.json").then((res) => res.text()).catch(() => ""),
-      fetch("/setup/sheet-template.csv").then((res) => res.text()).catch(() => ""),
-    ]);
-    const zip = new JSZip();
-    zip.file("apps-script/Code.gs", code);
-    zip.file("apps-script/appsscript.json", manifest);
-    zip.file("sheet-template.csv", csv);
-    zip.file(
-      "README.txt",
-      [
-        "NRB World Event - Google Sheets Setup Pack",
-        "============================================",
-        "",
-        "1. Create a new Google Spreadsheet.",
-        "2. Rename the tab to: Registrations",
-        "3. Header columns (Row 1):",
-        "   ID | Name | Country | Registration Status | Entry Status | Entry Time | Entry Gate | Checked By",
-        "4. Go to Extensions -> Apps Script.",
-        "5. Paste the Code.gs script into your Apps Script editor.",
-        "6. Click Deploy -> New Deployment -> Web App.",
-        "   - Execute as: Me",
-        "   - Who has access: Anyone",
-        "7. Copy the Web App /exec URL and paste into NRB World Setup.",
-        "8. Click 'Test Connection' to verify live Google Sheets sync.",
-        "",
-      ].join("\n"),
-    );
-    const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
-    downloadBlob(blob, "NRB-World-Google-Setup-Pack.zip");
-    toast.success("Downloaded Google Sheets setup pack");
+  function testSound(kind: "verified" | "already" | "invalid_day") {
+    void unlockAudio();
+    playSound(kind, true);
+    toast.info(`Playing ${kind} sound effect`);
   }
 
   return (
@@ -111,13 +86,50 @@ function SetupPage() {
         <div className="flex items-center gap-2">
           <Settings className="size-6 text-primary" />
           <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
-            Station & Cloud Setup
+            Station & System Settings
           </h1>
         </div>
         <p className="mt-1 max-w-md text-xs leading-relaxed text-muted-foreground sm:text-sm">
-          Manage station gates, operator identification, theme preference, and cloud backend configuration.
+          Configure active event day, station gates, staff identity, audio feedback, and cloud backend.
         </p>
       </header>
+
+      {/* Event Day Configuration */}
+      <section className="rounded-[24px] border border-border/80 bg-card p-5 shadow-[var(--shadow-border)]">
+        <div className="flex items-center gap-2 text-foreground">
+          <Calendar className="size-4.5 text-primary" />
+          <h2 className="text-sm font-bold tracking-tight">Active Event Day Schedule</h2>
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Set the active day to automatically enforce pass validity rules during check-in.
+        </p>
+
+        <div className="mt-3.5 grid grid-cols-2 gap-3">
+          {([1, 2] as const).map((day) => (
+            <button
+              key={day}
+              type="button"
+              onClick={() => {
+                setEventDay(day);
+                toast.success(`Switched to Event Day ${day}`);
+              }}
+              className={cn(
+                "flex h-14 flex-col items-center justify-center rounded-2xl border text-xs font-bold transition-all duration-150 active:scale-95",
+                eventDay === day
+                  ? "border-sky-500/60 bg-sky-500/15 text-sky-400 shadow-md ring-2 ring-sky-500/30"
+                  : "border-border/80 bg-muted text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <span className="text-sm font-extrabold tracking-wide">
+                Day {day}
+              </span>
+              <span className="text-[10px] font-medium text-muted-foreground">
+                {day === 1 ? "Opening & Main Event" : "Grand Finale & Closing"}
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
 
       {/* Station & Operator Configuration */}
       <section className="rounded-[24px] border border-border/80 bg-card p-5 shadow-[var(--shadow-border)]">
@@ -152,6 +164,55 @@ function SetupPage() {
           </label>
         </div>
 
+        {/* Audio Effects Testing & Controls */}
+        <div className="mt-4 pt-3 border-t border-border/60">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Audio Feedback & Sound Effects
+            </span>
+            <button
+              type="button"
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              className="text-xs font-semibold text-primary hover:underline"
+            >
+              {soundEnabled ? "Enabled" : "Muted"}
+            </button>
+          </div>
+          <div className="mt-2.5 grid grid-cols-3 gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 text-[11px] font-bold border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+              onClick={() => testSound("verified")}
+            >
+              <Volume2 className="mr-1 size-3.5" />
+              Chime
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 text-[11px] font-bold border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+              onClick={() => testSound("already")}
+            >
+              <Volume2 className="mr-1 size-3.5" />
+              Duplicate
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 text-[11px] font-bold border-purple-500/30 text-purple-400 hover:bg-purple-500/10"
+              onClick={() => testSound("invalid_day")}
+            >
+              <Volume2 className="mr-1 size-3.5" />
+              Wrong Day
+            </Button>
+          </div>
+        </div>
+
+        {/* Theme Preference */}
         <div className="mt-4 pt-3 border-t border-border/60">
           <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
             Display Theme
@@ -186,7 +247,7 @@ function SetupPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-foreground">
             <Database className="size-4.5 text-primary" />
-            <h2 className="text-sm font-bold tracking-tight">Google Apps Script Web App Endpoint</h2>
+            <h2 className="text-sm font-bold tracking-tight">Cloud Google Sheets Endpoint</h2>
           </div>
           {isUnlocked ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-bold text-emerald-400 border border-emerald-500/30">
@@ -314,32 +375,6 @@ function SetupPage() {
           </div>
         </div>
       )}
-
-      {/* Google Sheets Setup Documentation */}
-      <section className="space-y-3 rounded-[24px] border border-border/80 bg-card p-5 text-sm leading-relaxed text-muted-foreground shadow-[var(--shadow-border)]">
-        <h2 className="text-sm font-bold text-foreground">
-          Google Sheets Cloud Backend Guide
-        </h2>
-        <ol className="list-decimal space-y-1.5 pl-4 text-xs sm:text-sm">
-          <li>Google Spreadsheet Tab Name: <strong>Registrations</strong>.</li>
-          <li>
-            Header Row: <code className="rounded bg-muted px-1 font-mono text-[11px] text-foreground">ID | Name | Country | Registration Status | Entry Status | Entry Time | Entry Gate | Checked By</code>
-          </li>
-          <li>Click <strong>Extensions → Apps Script</strong> and paste <code className="rounded bg-muted px-1 font-mono text-[11px] text-foreground">Code.gs</code>.</li>
-          <li>Click <strong>Deploy → New deployment → Web app</strong> (Access: Anyone).</li>
-          <li>Copy the generated <code className="rounded bg-muted px-1 font-mono text-[11px] text-foreground">/exec</code> URL.</li>
-        </ol>
-        <div className="pt-2">
-          <Button
-            variant="secondary"
-            className="h-11 w-full font-semibold border border-border/80 active:scale-95"
-            onClick={() => void downloadPack()}
-          >
-            <Download className="mr-2 size-4 text-primary" />
-            Download Setup Pack (.zip)
-          </Button>
-        </div>
-      </section>
     </div>
   );
 }

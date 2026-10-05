@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as DirectoryRouteImport } from './routes/directory'
 import { Route as GeneratorRouteImport } from './routes/generator'
 import { Route as SetupRouteImport } from './routes/setup'
 
@@ -22,6 +23,11 @@ const IndexRoute = IndexRouteImport.update({
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DirectoryRoute = DirectoryRouteImport.update({
+  id: '/directory',
+  path: '/directory',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GeneratorRoute = GeneratorRouteImport.update({
@@ -38,12 +44,14 @@ const SetupRoute = SetupRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/directory': typeof DirectoryRoute
   '/generator': typeof GeneratorRoute
   '/setup': typeof SetupRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/directory': typeof DirectoryRoute
   '/generator': typeof GeneratorRoute
   '/setup': typeof SetupRoute
 }
@@ -51,20 +59,22 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/directory': typeof DirectoryRoute
   '/generator': typeof GeneratorRoute
   '/setup': typeof SetupRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/generator' | '/setup'
+  fullPaths: '/' | '/dashboard' | '/directory' | '/generator' | '/setup'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/generator' | '/setup'
-  id: '__root__' | '/' | '/dashboard' | '/generator' | '/setup'
+  to: '/' | '/dashboard' | '/directory' | '/generator' | '/setup'
+  id: '__root__' | '/' | '/dashboard' | '/directory' | '/generator' | '/setup'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
+  DirectoryRoute: typeof DirectoryRoute
   GeneratorRoute: typeof GeneratorRoute
   SetupRoute: typeof SetupRoute
 }
@@ -83,6 +93,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/directory': {
+      id: '/directory'
+      path: '/directory'
+      fullPath: '/directory'
+      preLoaderRoute: typeof DirectoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/generator': {
@@ -105,6 +122,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
+  DirectoryRoute: DirectoryRoute,
   GeneratorRoute: GeneratorRoute,
   SetupRoute: SetupRoute,
 }

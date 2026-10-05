@@ -1,4 +1,4 @@
-type SoundKind = "tick" | "verified" | "already" | "missing" | "error";
+type SoundKind = "tick" | "verified" | "already" | "invalid_day" | "missing" | "error";
 
 let ctx: AudioContext | null = null;
 let unlocked = false;
@@ -96,6 +96,15 @@ function executeTone(audio: AudioContext, kind: SoundKind) {
     tone(audio, t, 440, 0.11, 0.08, "triangle");
     tone(audio, t + 0.11, 349.23, 0.18, 0.08, "triangle");
     vibrate([30, 40, 30]);
+    return;
+  }
+
+  if (kind === "invalid_day") {
+    // Distinct minor tone for wrong day pass
+    tone(audio, t, 466.16, 0.1, 0.09, "sawtooth");
+    tone(audio, t + 0.09, 392, 0.1, 0.09, "sawtooth");
+    tone(audio, t + 0.18, 311.13, 0.22, 0.1, "triangle");
+    vibrate([60, 40, 60, 40, 100]);
     return;
   }
 
