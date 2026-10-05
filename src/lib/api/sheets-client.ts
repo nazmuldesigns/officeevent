@@ -40,11 +40,70 @@ function asAttendee(raw: unknown): Attendee | null {
   };
 }
 
+function gasJsonp<T>(url: string, timeoutMs: number): Promise<GasResponse<T>> {
+  return new Promise((resolve) => {
+    if (typeof window === "undefined" || !document?.head) {
+      resolve({ ok: false, error: "Browser environment required for JSONP.", code: "network" });
+      return;
+    }
+    const callbackName = `_gas_cb_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const script = document.createElement("script");
+    let settled = false;
+
+    const cleanup = () => {
+      settled = true;
+      try {
+        if ((window as unknown as Record<string, unknown>)[callbackName]) {
+          delete (window as unknown as Record<string, unknown>)[callbackName];
+        }
+        if (script.parentNode) {
+          script.parentNode.removeChild(script);
+        }
+      } catch {
+        /* cleanup safe */
+      }
+    };
+
+    const timer = window.setTimeout(() => {
+      if (settled) return;
+      cleanup();
+      resolve({
+        ok: false,
+        error: "Google Sheets request timed out. Please check deployment access (must be 'Anyone').",
+        code: "network",
+      });
+    }, timeoutMs);
+
+    (window as unknown as Record<string, (data: GasResponse<T>) => void>)[callbackName] = (data: GasResponse<T>) => {
+      if (settled) return;
+      window.clearTimeout(timer);
+      cleanup();
+      resolve(data);
+    };
+
+    script.onerror = () => {
+      if (settled) return;
+      window.clearTimeout(timer);
+      cleanup();
+      resolve({
+        ok: false,
+        error: "Access Denied: Google Apps Script Web App 'Who has access' must be set to 'Anyone'.",
+        code: "network",
+      });
+    };
+
+    const delim = url.includes("?") ? "&" : "?";
+    script.src = `${url}${delim}callback=${callbackName}`;
+    document.head.appendChild(script);
+  });
+}
+
 async function gasGet<T>(
   config: LiveConfig,
   params: Record<string, string>,
 ): Promise<GasResponse<T>> {
-  if (!config.scriptUrl.trim()) {
+  const rawUrl = config.scriptUrl?.trim();
+  if (!rawUrl) {
     return { ok: false, error: "Google Apps Script URL is missing.", code: "config" };
   }
 
@@ -52,7 +111,7 @@ async function gasGet<T>(
     ...params,
     ...(config.apiKey ? { key: config.apiKey } : {}),
   };
-  const url = withParams(config.scriptUrl.trim(), query);
+  const url = withParams(rawUrl, query);
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), TIMEOUT_MS);
 
@@ -63,28 +122,46 @@ async function gasGet<T>(
       signal: controller.signal,
       cache: "no-store",
     });
+
     if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        return {
+          ok: false,
+          error: "Permission Denied: In Apps Script, set 'Who has access' to 'Anyone'.",
+          code: "auth",
+        };
+      }
       return {
         ok: false,
-        error: `Google Sheets responded ${response.status}.`,
+        error: `Google Sheets responded with HTTP status ${response.status}.`,
         code: "server",
       };
     }
-    const data = (await response.json()) as GasResponse<T>;
-    if (!data || typeof data !== "object") {
-      return { ok: false, error: "Unexpected Google Sheets response.", code: "server" };
+
+    const text = await response.text();
+    if (text.includes("<!DOCTYPE") || text.includes("<html") || text.includes("accounts.google.com") || text.includes("আপনাকে অ্যাক্সেস পেতে হবে")) {
+      return {
+        ok: false,
+        error: "Google Apps Script Access Error: In Apps Script, click Deploy -> Manage Deployments -> Edit -> set 'Who has access' to 'Anyone'.",
+        code: "auth",
+      };
     }
-    return data;
+
+    try {
+      const data = JSON.parse(text) as GasResponse<T>;
+      if (!data || typeof data !== "object") {
+        return { ok: false, error: "Unexpected Google Sheets response format.", code: "server" };
+      }
+      return data;
+    } catch {
+      return gasJsonp<T>(url, 8_000);
+    }
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      return { ok: false, error: "Google Sheets timed out.", code: "network" };
+      return { ok: false, error: "Google Sheets request timed out.", code: "network" };
     }
-    return {
-      ok: false,
-      error:
-        "Could not reach Google Sheets. Check the deployment URL, access (Anyone), and your network.",
-      code: "network",
-    };
+    // Try JSONP fallback
+    return gasJsonp<T>(url, 8_000);
   } finally {
     window.clearTimeout(timer);
   }
