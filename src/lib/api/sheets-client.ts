@@ -1,6 +1,6 @@
-import type { Attendee, GasResponse } from "@/lib/types";
+import type { Attendee, EventDay, GasResponse, PassType } from "@/lib/types";
 
-const TIMEOUT_MS = 12_000;
+const TIMEOUT_MS = 5_000;
 
 export type LiveConfig = {
   scriptUrl: string;
@@ -90,7 +90,7 @@ function gasJsonp<T>(url: string, timeoutMs: number): Promise<GasResponse<T>> {
       cleanup();
       resolve({
         ok: false,
-        error: "Google Sheets request timed out. Please check deployment access (must be 'Anyone').",
+        error: "Google Sheets request timed out. Please check deployment access ('Execute as: Me', 'Who has access: Anyone').",
         code: "network",
       });
     }, timeoutMs);
@@ -108,7 +108,7 @@ function gasJsonp<T>(url: string, timeoutMs: number): Promise<GasResponse<T>> {
       cleanup();
       resolve({
         ok: false,
-        error: "Access Denied: Google Apps Script Web App 'Who has access' must be set to 'Anyone'.",
+        error: "Google Apps Script Access Error: In Apps Script, set 'Execute as' to 'Me' and 'Who has access' to 'Anyone'.",
         code: "network",
       });
     };
@@ -148,7 +148,7 @@ async function gasGet<T>(
       if (response.status === 401 || response.status === 403) {
         return {
           ok: false,
-          error: "Permission Denied: In Apps Script, set 'Who has access' to 'Anyone'.",
+          error: "Permission Denied: In Apps Script, set 'Execute as: Me' and 'Who has access: Anyone'.",
           code: "auth",
         };
       }
@@ -160,10 +160,16 @@ async function gasGet<T>(
     }
 
     const text = await response.text();
-    if (text.includes("<!DOCTYPE") || text.includes("<html") || text.includes("accounts.google.com") || text.includes("আপনাকে অ্যাক্সেস পেতে হবে")) {
+    if (
+      text.includes("<!DOCTYPE") ||
+      text.includes("<html") ||
+      text.includes("accounts.google.com") ||
+      text.includes("ServiceLogin") ||
+      text.includes("আপনাকে অ্যাক্সেস পেতে হবে")
+    ) {
       return {
         ok: false,
-        error: "Google Apps Script Access Error: In Apps Script, click Deploy -> Manage Deployments -> Edit -> set 'Who has access' to 'Anyone'.",
+        error: "Google Apps Script Access Error: In Apps Script, click Deploy -> Manage Deployments -> Edit -> set 'Execute as' to 'Me' and 'Who has access' to 'Anyone'.",
         code: "auth",
       };
     }
@@ -175,14 +181,14 @@ async function gasGet<T>(
       }
       return data;
     } catch {
-      return gasJsonp<T>(url, 8_000);
+      return gasJsonp<T>(url, 4_500);
     }
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       return { ok: false, error: "Google Sheets request timed out.", code: "network" };
     }
     // Try JSONP fallback
-    return gasJsonp<T>(url, 8_000);
+    return gasJsonp<T>(url, 4_500);
   } finally {
     window.clearTimeout(timer);
   }
@@ -190,7 +196,7 @@ async function gasGet<T>(
 
 export const sheetsBackend = {
   async ping(config: LiveConfig) {
-    return gasGet<{ now: string; sheet: string }>(config, { action: "health" });
+    return gasGet<{ now: string; sheet: string; rows?: number }>(config, { action: "health" });
   },
 
   async list(config: LiveConfig) {

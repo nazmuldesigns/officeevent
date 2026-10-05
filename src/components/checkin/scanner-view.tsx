@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, CameraOff, Keyboard, LoaderCircle } from "lucide-react";
+import { Camera, CameraOff, Keyboard, LoaderCircle, RotateCcw } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { playSound, unlockAudio } from "@/lib/audio/sounds";
@@ -39,10 +40,17 @@ export function ScannerView({
     const id = normalizeId(raw);
     if (!id) return;
     const now = Date.now();
-    if (id === lastRef.current.id && now - lastRef.current.at < 1800) return;
+    if (id === lastRef.current.id && now - lastRef.current.at < 800) return;
     lastRef.current = { id, at: now };
     playSound("tick", useSettings.getState().soundEnabled);
     onScanRef.current(id);
+  }, []);
+
+  const handleRescan = useCallback(() => {
+    lastRef.current = { id: "", at: 0 };
+    void unlockAudio();
+    playSound("tick", useSettings.getState().soundEnabled);
+    toast.info("Scanner reset & ready for scan");
   }, []);
 
   useEffect(() => {
@@ -295,6 +303,20 @@ export function ScannerView({
           ) : null}
         </div>
       </section>
+
+      {/* Rescan Barcode / Quick Camera Reset */}
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          onClick={handleRescan}
+          className="flex h-12 w-full items-center justify-center gap-2.5 rounded-2xl border-sky-500/35 bg-sky-500/10 px-4 text-xs font-bold tracking-wide text-sky-400 shadow-sm transition-all duration-150 hover:bg-sky-500/20 active:scale-95"
+        >
+          <RotateCcw className="size-4.5" />
+          <span>Rescan Barcode / আবার স্ক্যান করুন</span>
+        </Button>
+      </div>
 
       {/* Manual ID Form */}
       <form

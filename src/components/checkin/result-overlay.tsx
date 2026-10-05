@@ -5,11 +5,11 @@ import type { CheckinResult } from "@/lib/types";
 import { cn, formatEntryTime } from "@/lib/utils";
 
 const RETURN_MS = {
-  verified: 2200,
-  already: 2800,
-  invalid_day: 3800,
-  missing: 4000,
-  error: 3600,
+  verified: 1200,
+  already: 1700,
+  invalid_day: 2400,
+  missing: 2600,
+  error: 2200,
 } as const;
 
 export function ResultOverlay({

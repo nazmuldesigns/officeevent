@@ -37,7 +37,7 @@ function tone(
   start: number,
   freq: number,
   duration: number,
-  gain = 0.08,
+  gain = 0.24,
   type: OscillatorType = "sine",
 ) {
   try {
@@ -46,12 +46,12 @@ function tone(
     osc.type = type;
     osc.frequency.setValueAtTime(freq, start);
     amp.gain.setValueAtTime(0.0001, start);
-    amp.gain.exponentialRampToValueAtTime(gain, start + 0.008);
+    amp.gain.exponentialRampToValueAtTime(gain, start + 0.012);
     amp.gain.exponentialRampToValueAtTime(0.0001, start + duration);
     osc.connect(amp);
     amp.connect(audio.destination);
     osc.start(start);
-    osc.stop(start + duration + 0.02);
+    osc.stop(start + duration + 0.04);
   } catch {
     /* ignore audio synthesis error */
   }
@@ -77,47 +77,49 @@ function executeTone(audio: AudioContext, kind: SoundKind) {
   const t = audio.currentTime + 0.005;
 
   if (kind === "tick") {
-    tone(audio, t, 1950, 0.035, 0.06, "sine");
+    // Crisp camera scan snap
+    tone(audio, t, 2200, 0.04, 0.14, "sine");
     return;
   }
 
   if (kind === "verified") {
-    // Beautiful crisp ascending major chord (C5, E5, G5, C6)
-    tone(audio, t, 523.25, 0.08, 0.08, "sine");
-    tone(audio, t + 0.06, 659.25, 0.08, 0.08, "sine");
-    tone(audio, t + 0.12, 783.99, 0.12, 0.09, "sine");
-    tone(audio, t + 0.18, 1046.5, 0.22, 0.1, "triangle");
-    vibrate([30, 20, 40]);
+    // Premium VIP Entrance Chime (D5 - F#5 - A5 - D6 sparkling arpeggio)
+    // Much louder and crisper for crowded event gates
+    tone(audio, t, 587.33, 0.09, 0.22, "sine");
+    tone(audio, t + 0.065, 739.99, 0.09, 0.24, "sine");
+    tone(audio, t + 0.13, 880.0, 0.14, 0.26, "sine");
+    tone(audio, t + 0.19, 1174.66, 0.28, 0.28, "triangle");
+    vibrate([35, 25, 45]);
     return;
   }
 
   if (kind === "already") {
-    // Amber warning two-tone
-    tone(audio, t, 440, 0.11, 0.08, "triangle");
-    tone(audio, t + 0.11, 349.23, 0.18, 0.08, "triangle");
-    vibrate([30, 40, 30]);
+    // Punchy warning double-chime (D5 -> A4)
+    tone(audio, t, 587.33, 0.12, 0.24, "triangle");
+    tone(audio, t + 0.12, 440.0, 0.22, 0.25, "triangle");
+    vibrate([40, 30, 40]);
     return;
   }
 
   if (kind === "invalid_day") {
-    // Distinct minor tone for wrong day pass
-    tone(audio, t, 466.16, 0.1, 0.09, "sawtooth");
-    tone(audio, t + 0.09, 392, 0.1, 0.09, "sawtooth");
-    tone(audio, t + 0.18, 311.13, 0.22, 0.1, "triangle");
+    // Urgent restricted pass warning (Eb5 -> Bb4 -> F4)
+    tone(audio, t, 622.25, 0.11, 0.24, "sawtooth");
+    tone(audio, t + 0.1, 466.16, 0.12, 0.25, "sawtooth");
+    tone(audio, t + 0.21, 349.23, 0.24, 0.26, "triangle");
     vibrate([60, 40, 60, 40, 100]);
     return;
   }
 
   if (kind === "missing") {
-    // Not registered alert
-    tone(audio, t, 240, 0.14, 0.09, "sawtooth");
-    tone(audio, t + 0.12, 180, 0.22, 0.09, "sawtooth");
+    // Not registered alert (D4 -> G3)
+    tone(audio, t, 293.66, 0.14, 0.25, "sawtooth");
+    tone(audio, t + 0.13, 196.0, 0.24, 0.26, "sawtooth");
     vibrate([80, 40, 80]);
     return;
   }
 
   // Error buzz
-  tone(audio, t, 160, 0.22, 0.1, "square");
+  tone(audio, t, 175, 0.24, 0.26, "square");
   vibrate([100]);
 }
 

@@ -40,6 +40,14 @@ export type Attendee = {
   checkedBy: string | null;
 };
 
+export type PendingCheckIn = {
+  id: string;
+  day: EventDay;
+  time: string;
+  gate: string;
+  checkedBy: string;
+};
+
 export type ConnectionMode = "live";
 
 export type SyncStatus = "idle" | "syncing" | "ok" | "error" | "offline";

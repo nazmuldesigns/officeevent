@@ -10,6 +10,7 @@ import type {
   EventDay,
   Gate,
   PassType,
+  PendingCheckIn,
   SyncStatus,
 } from "@/lib/types";
 import { GATES } from "@/lib/types";
@@ -59,6 +60,7 @@ export const useSettings = create<SettingsState>()(
 type RegistryState = {
   attendees: Attendee[];
   recent: Attendee[];
+  offlineQueue: PendingCheckIn[];
   syncStatus: SyncStatus;
   lastSyncAt: string | null;
   syncError: string | null;
@@ -66,46 +68,86 @@ type RegistryState = {
   hydrate: (rows: Attendee[]) => void;
   upsert: (row: Attendee) => void;
   pushRecent: (row: Attendee) => void;
+  enqueueOffline: (item: PendingCheckIn) => void;
+  dequeueOffline: (ids: string[]) => void;
   setSync: (patch: Partial<Pick<RegistryState, "syncStatus" | "lastSyncAt" | "syncError">>) => void;
   markInflight: (id: string, on: boolean) => void;
 };
 
-export const useRegistry = create<RegistryState>((set, get) => ({
-  attendees: [],
-  recent: [],
-  syncStatus: "idle",
-  lastSyncAt: null,
-  syncError: null,
-  inflight: {},
-  hydrate: (rows) =>
-    set({
-      attendees: rows,
-      recent: rows
-        .filter((row) => (row.day1Status === "ENTERED" || row.day2Status === "ENTERED") && row.entryTime)
-        .sort((a, b) => (b.entryTime ?? "").localeCompare(a.entryTime ?? ""))
-        .slice(0, 30),
+export const useRegistry = create<RegistryState>()(
+  persist(
+    (set, get) => ({
+      attendees: [],
+      recent: [],
+      offlineQueue: [],
+      syncStatus: "idle",
+      lastSyncAt: null,
+      syncError: null,
+      inflight: {},
+      hydrate: (rows) => {
+        const current = get().attendees;
+        const lookup = new Map<string, Attendee>();
+        for (const item of rows) lookup.set(item.id, item);
+        for (const item of current) {
+          const fromRemote = lookup.get(item.id);
+          if (fromRemote) {
+            if (item.day1Status === "ENTERED" && fromRemote.day1Status !== "ENTERED") {
+              lookup.set(item.id, { ...fromRemote, day1Status: "ENTERED", day1Time: item.day1Time });
+            }
+            if (item.day2Status === "ENTERED" && fromRemote.day2Status !== "ENTERED") {
+              lookup.set(item.id, { ...fromRemote, day2Status: "ENTERED", day2Time: item.day2Time });
+            }
+          }
+        }
+        const merged = Array.from(lookup.values());
+        set({
+          attendees: merged,
+          recent: merged
+            .filter((row) => (row.day1Status === "ENTERED" || row.day2Status === "ENTERED") && row.entryTime)
+            .sort((a, b) => (b.entryTime ?? "").localeCompare(a.entryTime ?? ""))
+            .slice(0, 30),
+        });
+      },
+      upsert: (row) => {
+        const attendees = get().attendees;
+        const index = attendees.findIndex((item) => item.id === row.id);
+        const next =
+          index >= 0
+            ? attendees.map((item, i) => (i === index ? row : item))
+            : [row, ...attendees];
+        set({ attendees: next });
+      },
+      pushRecent: (row) =>
+        set({
+          recent: [row, ...get().recent.filter((item) => item.id !== row.id)].slice(0, 30),
+        }),
+      enqueueOffline: (item) =>
+        set({
+          offlineQueue: [...get().offlineQueue.filter((q) => q.id !== item.id || q.day !== item.day), item],
+        }),
+      dequeueOffline: (ids) =>
+        set({
+          offlineQueue: get().offlineQueue.filter((q) => !ids.includes(q.id)),
+        }),
+      setSync: (patch) => set(patch),
+      markInflight: (id, on) => {
+        const inflight = { ...get().inflight };
+        if (on) inflight[id] = true;
+        else delete inflight[id];
+        set({ inflight });
+      },
     }),
-  upsert: (row) => {
-    const attendees = get().attendees;
-    const index = attendees.findIndex((item) => item.id === row.id);
-    const next =
-      index >= 0
-        ? attendees.map((item, i) => (i === index ? row : item))
-        : [row, ...attendees];
-    set({ attendees: next });
-  },
-  pushRecent: (row) =>
-    set({
-      recent: [row, ...get().recent.filter((item) => item.id !== row.id)].slice(0, 30),
-    }),
-  setSync: (patch) => set(patch),
-  markInflight: (id, on) => {
-    const inflight = { ...get().inflight };
-    if (on) inflight[id] = true;
-    else delete inflight[id];
-    set({ inflight });
-  },
-}));
+    {
+      name: "nrb-world-registry-v4",
+      partialize: (state) => ({
+        attendees: state.attendees,
+        recent: state.recent,
+        offlineQueue: state.offlineQueue,
+        lastSyncAt: state.lastSyncAt,
+      }),
+    },
+  ),
+);
 
 function liveConfig(): LiveConfig {
   const { scriptUrl, apiKey } = useSettings.getState();
@@ -143,6 +185,31 @@ export function computeStats(attendees: Attendee[], activeDay: EventDay = 1): Da
   };
 }
 
+export async function flushOfflineQueue(): Promise<void> {
+  const { offlineQueue, dequeueOffline } = useRegistry.getState();
+  if (!offlineQueue || offlineQueue.length === 0) return;
+  const cfg = liveConfig();
+  const successfulIds: string[] = [];
+  for (const item of offlineQueue) {
+    try {
+      const res = await sheetsBackend.checkIn(cfg, {
+        id: item.id,
+        gate: item.gate,
+        checkedBy: item.checkedBy,
+        day: item.day,
+      });
+      if (res.ok) {
+        successfulIds.push(item.id);
+      }
+    } catch {
+      break;
+    }
+  }
+  if (successfulIds.length > 0) {
+    dequeueOffline(successfulIds);
+  }
+}
+
 export async function syncRegistry(): Promise<boolean> {
   const registry = useRegistry.getState();
   registry.setSync({ syncStatus: "syncing", syncError: null });
@@ -161,6 +228,7 @@ export async function syncRegistry(): Promise<boolean> {
       lastSyncAt: new Date().toISOString(),
       syncError: null,
     });
+    void flushOfflineQueue();
     return true;
   } catch (error) {
     useRegistry.getState().setSync({
@@ -190,7 +258,7 @@ function fromCache(id: string): Attendee | undefined {
 }
 
 /**
- * Real-time 2-Day check-in verification with pass validation guard.
+ * Real-time 2-Day check-in verification with zero-latency optimistic verification.
  */
 export async function verifyAndCheckIn(rawId: string): Promise<CheckinResult> {
   const id = normalizeId(rawId);
@@ -206,8 +274,11 @@ export async function verifyAndCheckIn(rawId: string): Promise<CheckinResult> {
 
   try {
     const cached = fromCache(id);
+
+    // OPTIMISTIC ZERO-LATENCY PATH:
+    // When the badge is in the registered attendee roster:
     if (cached) {
-      // Validate pass type against current event day
+      // 1. Guard against wrong day pass
       if (eventDay === 1 && cached.passType === "Day 2 Only") {
         return {
           kind: "invalid_day",
@@ -225,14 +296,63 @@ export async function verifyAndCheckIn(rawId: string): Promise<CheckinResult> {
         };
       }
 
-      // Check if already checked in for active day
+      // 2. Guard against duplicate check-in today
       const alreadyToday =
         eventDay === 1 ? cached.day1Status === "ENTERED" : cached.day2Status === "ENTERED";
       if (alreadyToday) {
         return { kind: "already", attendee: cached, day: eventDay };
       }
+
+      // 3. INSTANT VERIFIED! (0ms delay)
+      const nowIso = new Date().toISOString();
+      const updated: Attendee = {
+        ...cached,
+        entryStatus: "ENTERED",
+        entryTime: nowIso,
+        day1Status: eventDay === 1 ? "ENTERED" : cached.day1Status,
+        day1Time: eventDay === 1 ? nowIso : cached.day1Time,
+        day2Status: eventDay === 2 ? "ENTERED" : cached.day2Status,
+        day2Time: eventDay === 2 ? nowIso : cached.day2Time,
+        entryGate: gate || "Gate 1",
+        checkedBy: staffName || "Staff",
+      };
+
+      // Save instantly to local reactive store & recent list
+      useRegistry.getState().upsert(updated);
+      useRegistry.getState().pushRecent(updated);
+
+      // Record in offline queue
+      useRegistry.getState().enqueueOffline({
+        id,
+        day: eventDay,
+        time: nowIso,
+        gate: gate || "Gate 1",
+        checkedBy: staffName || "Staff",
+      });
+
+      // Fire silent background sync to Google Sheets (doesn't hold up gate scanning!)
+      void sheetsBackend
+        .checkIn(liveConfig(), {
+          id,
+          gate: gate || "Gate 1",
+          checkedBy: staffName || "Staff",
+          day: eventDay,
+        })
+        .then((res) => {
+          if (res.ok) {
+            useRegistry.getState().dequeueOffline([id]);
+            useRegistry.getState().setSync({ syncStatus: "ok", lastSyncAt: new Date().toISOString() });
+          }
+        })
+        .catch(() => {
+          useRegistry.getState().setSync({ syncStatus: "offline" });
+        });
+
+      // Return immediately without waiting for network round-trip!
+      return { kind: "verified", attendee: updated, day: eventDay };
     }
 
+    // Fallback: If not in local cache, query Google Sheet directly
     const written = await sheetsBackend.checkIn(liveConfig(), {
       id,
       gate: gate || "Gate 1",

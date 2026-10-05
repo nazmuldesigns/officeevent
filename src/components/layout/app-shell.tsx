@@ -4,6 +4,8 @@ import {
   Barcode,
   Calendar,
   LayoutDashboard,
+  Maximize,
+  Minimize,
   Moon,
   ScanLine,
   Settings2,
@@ -36,6 +38,33 @@ export function AppShell({ children }: { children: ReactNode }) {
   const syncStatus = useRegistry((s) => s.syncStatus);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [logoLoaded, setLogoLoaded] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const onFs = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener("fullscreenchange", onFs);
+    return () => document.removeEventListener("fullscreenchange", onFs);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen();
+        } else if ((document.documentElement as unknown as { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen) {
+          await (document.documentElement as unknown as { webkitRequestFullscreen: () => Promise<void> }).webkitRequestFullscreen();
+        }
+      } else {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  };
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -66,7 +95,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh bg-background text-foreground transition-colors duration-200">
       <header className="sticky top-0 z-30 border-b border-border/80 bg-background/85 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 backdrop-blur-xl transition-all">
-        <div className="mx-auto flex max-w-3xl items-center gap-3">
+        <div className="mx-auto flex max-w-4xl items-center gap-3">
           <Link
             to="/"
             className="group flex min-w-0 items-center gap-3 transition-opacity active:opacity-80"
@@ -118,6 +147,21 @@ export function AppShell({ children }: { children: ReactNode }) {
 
             <SyncChip status={syncStatus} />
 
+            {/* Fullscreen Button */}
+            <button
+              type="button"
+              aria-label={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+              onClick={() => void toggleFullscreen()}
+              className="grid size-10 place-items-center rounded-xl border border-border/60 bg-card/60 text-muted-foreground transition-all duration-150 hover:bg-muted hover:text-foreground active:scale-95"
+              title={isFullscreen ? "Exit Fullscreen (পূর্ণ স্ক্রিন বন্ধ)" : "Fullscreen Mode (সম্পূর্ণ স্ক্রিন চালু)"}
+            >
+              {isFullscreen ? (
+                <Minimize className="size-4.5 text-sky-400" />
+              ) : (
+                <Maximize className="size-4.5 text-slate-300" />
+              )}
+            </button>
+
             <button
               type="button"
               aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
@@ -164,13 +208,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-3xl px-4 pt-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))]">
+      <main className="mx-auto w-full max-w-4xl px-3 sm:px-4 pt-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))]">
         {children}
       </main>
 
       {/* 4-Tab Bottom Navigation Bar */}
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-border/80 bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
-        <div className="mx-auto grid max-w-3xl grid-cols-4 gap-1.5 px-2.5 py-2">
+        <div className="mx-auto grid max-w-4xl grid-cols-4 gap-1.5 px-2.5 py-2">
           {NAV.map((item) => {
             const active = pathname === item.to;
             const Icon = item.icon;

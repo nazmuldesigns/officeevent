@@ -329,6 +329,28 @@ function SetupPage() {
             </Button>
           )}
         </div>
+
+        {/* Google Apps Script Deployment Configuration Guide */}
+        <div className="rounded-2xl border border-sky-500/30 bg-sky-500/10 p-4 space-y-2.5">
+          <div className="flex items-center gap-2 text-sky-400 font-bold text-xs uppercase tracking-wider">
+            <span>Google Apps Script Deployment সঠিক সেটিংস:</span>
+          </div>
+          <div className="grid gap-2 text-xs sm:grid-cols-2">
+            <div className="rounded-xl bg-card/80 p-2.5 border border-border/60">
+              <span className="font-semibold text-muted-foreground block text-[11px]">1. Execute as (কার হিসেবে চলবে):</span>
+              <span className="font-bold text-emerald-400 text-xs">Me (আপনার ইমেইল অ্যাকাউন্ট)</span>
+              <p className="text-[10px] text-muted-foreground mt-0.5">কখনোই "User accessing the web app" রাখবেন না।</p>
+            </div>
+            <div className="rounded-xl bg-card/80 p-2.5 border border-border/60">
+              <span className="font-semibold text-muted-foreground block text-[11px]">2. Who has access (কার অ্যাক্সেস আছে):</span>
+              <span className="font-bold text-emerald-400 text-xs">Anyone (যে কেউ)</span>
+              <p className="text-[10px] text-muted-foreground mt-0.5">"Anyone with Google account" নয়, সম্পূর্ণ 'Anyone'।</p>
+            </div>
+          </div>
+          <p className="text-[11px] text-sky-300/80 leading-relaxed">
+            Apps Script এ <strong>Deploy &gt; Manage Deployments &gt; Edit</strong> করে ওপরের দুটি সেটিংস মিলিয়ে <strong>Deploy</strong> বাটনে ক্লিক করলেই গুগল লগইন ঝামেলা ছাড়া সরাসরি সিঙ্ক হবে।
+          </p>
+        </div>
       </section>
 
       {/* Unlock PIN Modal */}
