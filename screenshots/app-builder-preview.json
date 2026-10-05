@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Gateflow",
+      "hasCanvas": false,
+      "bodyTextLen": 297,
+      "bodyTextHash": "7350ddc2c158d3b338db8d13c3a6656e53ca0c6d08b32a8b2acfb6ec41fbf986",
+      "bodyTextPrefix": "Gateflow Gate 1·Demo Idle Check-in Point at a Code 128 badge, or",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Gateflow",
+      "hasCanvas": false,
+      "bodyTextLen": 292,
+      "bodyTextHash": "344be417e4acd2d6f79f8ac9cb12e7ec8794266205861407de8b3ed96ec2b48a",
+      "bodyTextPrefix": "Gateflow Gate 1·Demo Check-in Point at a Code 128 badge, or type",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-preview.json"
+}
