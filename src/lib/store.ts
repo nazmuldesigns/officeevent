@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { demoBackend, resetDemoStore } from "@/lib/api/demo-store";
 import { sheetsBackend, type LiveConfig } from "@/lib/api/sheets-client";
+import { DEFAULT_SCRIPT_URL } from "@/lib/constants";
 import type {
   Attendee,
   CheckinResult,
@@ -23,7 +23,6 @@ export type SettingsState = {
   theme: "dark" | "light";
   setScriptUrl: (value: string) => void;
   setApiKey: (value: string) => void;
-  setMode: (value: ConnectionMode) => void;
   setGate: (value: Gate) => void;
   setStaffName: (value: string) => void;
   setSoundEnabled: (value: boolean) => void;
@@ -33,22 +32,21 @@ export type SettingsState = {
 export const useSettings = create<SettingsState>()(
   persist(
     (set) => ({
-      scriptUrl: "",
+      scriptUrl: DEFAULT_SCRIPT_URL,
       apiKey: "",
-      mode: "demo",
+      mode: "live",
       gate: "Gate 1",
       staffName: "",
       soundEnabled: true,
       theme: "dark",
       setScriptUrl: (scriptUrl) => set({ scriptUrl }),
       setApiKey: (apiKey) => set({ apiKey }),
-      setMode: (mode) => set({ mode }),
-      setGate: (gate) => set({ gate: GATES.includes(gate) ? gate : "Gate 1" }),
+      setGate: (gate) => set({ gate }),
       setStaffName: (staffName) => set({ staffName }),
       setSoundEnabled: (soundEnabled) => set({ soundEnabled }),
       setTheme: (theme) => set({ theme }),
     }),
-    { name: "gateflow-settings" },
+    { name: "nrb-world-settings-v2" },
   ),
 );
 
@@ -79,7 +77,7 @@ export const useRegistry = create<RegistryState>((set, get) => ({
       recent: rows
         .filter((row) => row.entryStatus === "ENTERED" && row.entryTime)
         .sort((a, b) => (b.entryTime ?? "").localeCompare(a.entryTime ?? ""))
-        .slice(0, 24),
+        .slice(0, 30),
     }),
   upsert: (row) => {
     const attendees = get().attendees;
@@ -92,7 +90,7 @@ export const useRegistry = create<RegistryState>((set, get) => ({
   },
   pushRecent: (row) =>
     set({
-      recent: [row, ...get().recent.filter((item) => item.id !== row.id)].slice(0, 24),
+      recent: [row, ...get().recent.filter((item) => item.id !== row.id)].slice(0, 30),
     }),
   setSync: (patch) => set(patch),
   markInflight: (id, on) => {
@@ -105,7 +103,10 @@ export const useRegistry = create<RegistryState>((set, get) => ({
 
 function liveConfig(): LiveConfig {
   const { scriptUrl, apiKey } = useSettings.getState();
-  return { scriptUrl, apiKey };
+  return {
+    scriptUrl: scriptUrl?.trim() || DEFAULT_SCRIPT_URL,
+    apiKey,
+  };
 }
 
 export function computeStats(attendees: Attendee[]): DashboardStats {
@@ -113,27 +114,15 @@ export function computeStats(attendees: Attendee[]): DashboardStats {
   return {
     totalRegistered: attendees.length,
     checkedIn,
-    remaining: attendees.length - checkedIn,
-    newEntries: attendees.filter((row) => row.registrationStatus === "NEW ENTRY")
-      .length,
+    remaining: Math.max(0, attendees.length - checkedIn),
+    newEntries: attendees.filter((row) => row.registrationStatus === "NEW ENTRY").length,
   };
 }
 
 export async function syncRegistry(): Promise<boolean> {
-  const { mode } = useSettings.getState();
   const registry = useRegistry.getState();
   registry.setSync({ syncStatus: "syncing", syncError: null });
   try {
-    if (mode === "demo") {
-      const rows = await demoBackend.list();
-      useRegistry.getState().hydrate(rows);
-      useRegistry.getState().setSync({
-        syncStatus: "ok",
-        lastSyncAt: new Date().toISOString(),
-        syncError: null,
-      });
-      return true;
-    }
     const result = await sheetsBackend.list(liveConfig());
     if (!result.ok) {
       useRegistry.getState().setSync({
@@ -152,7 +141,7 @@ export async function syncRegistry(): Promise<boolean> {
   } catch (error) {
     useRegistry.getState().setSync({
       syncStatus: "offline",
-      syncError: error instanceof Error ? error.message : "Sync failed",
+      syncError: error instanceof Error ? error.message : "Network sync failed",
     });
     return false;
   }
@@ -160,20 +149,16 @@ export async function syncRegistry(): Promise<boolean> {
 
 export async function testConnection(): Promise<{ ok: boolean; message: string }> {
   const { scriptUrl } = useSettings.getState();
-  if (!scriptUrl.trim()) {
-    return { ok: false, message: "Paste your Apps Script web app URL first." };
+  const url = scriptUrl?.trim() || DEFAULT_SCRIPT_URL;
+  if (!url) {
+    return { ok: false, message: "Apps Script web app URL is missing." };
   }
   const result = await sheetsBackend.ping(liveConfig());
   if (!result.ok) return { ok: false, message: result.error };
   return {
     ok: true,
-    message: `Connected to ${result.sheet || "Registrations"} · ${result.now}`,
+    message: `Connected to Google Sheet tab: "${result.sheet || "Registrations"}" (${result.rows || 0} rows found)`,
   };
-}
-
-export async function resetDemo(): Promise<void> {
-  resetDemoStore();
-  await syncRegistry();
 }
 
 function fromCache(id: string): Attendee | undefined {
@@ -181,84 +166,56 @@ function fromCache(id: string): Attendee | undefined {
 }
 
 /**
- * Check-in is never optimistic. GREEN is shown only after the backend
- * confirms the write. Cache is used to skip a round-trip on already-entered
- * IDs and to fill the UI while lookup is in flight — never to claim a save.
+ * Real-time check-in with Google Sheets backend.
  */
 export async function verifyAndCheckIn(rawId: string): Promise<CheckinResult> {
   const id = normalizeId(rawId);
-  if (!id) return { kind: "error", id: rawId, message: "Enter a valid ID." };
+  if (!id) return { kind: "error", id: rawId, message: "Enter a valid attendee ID." };
 
   const { inflight } = useRegistry.getState();
   if (inflight[id]) {
-    return { kind: "error", id, message: "This ID is already being processed." };
+    return { kind: "error", id, message: "This ID is currently being processed." };
   }
 
   useRegistry.getState().markInflight(id, true);
-  const { mode } = useSettings.getState();
   const { gate, staffName } = useSettings.getState();
 
   try {
-    if (mode === "demo") {
-      const found = await demoBackend.lookup(id);
-      if (!found) return { kind: "missing", id };
-      if (found.entryStatus === "ENTERED") {
-        useRegistry.getState().upsert(found);
-        return { kind: "already", attendee: found };
-      }
-      const written = await demoBackend.checkIn({
-        id,
-        gate,
-        checkedBy: staffName,
-      });
-      if (written.result === "not_registered") return { kind: "missing", id };
-      if (written.result === "already") {
-        useRegistry.getState().upsert(written.attendee);
-        return { kind: "already", attendee: written.attendee };
-      }
-      useRegistry.getState().upsert(written.attendee);
-      useRegistry.getState().pushRecent(written.attendee);
-      return { kind: "verified", attendee: written.attendee };
-    }
-
     const cached = fromCache(id);
     if (cached?.entryStatus === "ENTERED") {
       return { kind: "already", attendee: cached };
     }
 
-    const lookup = await sheetsBackend.lookup(liveConfig(), id);
-    if (!lookup.ok) {
-      return { kind: "error", id, message: lookup.error, attendee: cached };
-    }
-    if (!lookup.found || !lookup.attendee) return { kind: "missing", id };
-    if (lookup.attendee.entryStatus === "ENTERED") {
-      useRegistry.getState().upsert(lookup.attendee);
-      return { kind: "already", attendee: lookup.attendee };
-    }
-
     const written = await sheetsBackend.checkIn(liveConfig(), {
       id,
-      gate,
-      checkedBy: staffName,
+      gate: gate || "Gate 1",
+      checkedBy: staffName || "Staff",
     });
+
     if (!written.ok) {
-      return { kind: "error", id, message: written.error, attendee: lookup.attendee };
+      return { kind: "error", id, message: written.error, attendee: cached };
     }
-    if (written.result === "not_registered") return { kind: "missing", id };
+
+    if (written.result === "not_registered") {
+      return { kind: "missing", id };
+    }
+
     if (written.result === "already" && written.attendee) {
       useRegistry.getState().upsert(written.attendee);
       return { kind: "already", attendee: written.attendee };
     }
+
     if (written.result === "verified" && written.attendee) {
       useRegistry.getState().upsert(written.attendee);
       useRegistry.getState().pushRecent(written.attendee);
       return { kind: "verified", attendee: written.attendee };
     }
+
     return {
       kind: "error",
       id,
       message: "Google Sheets did not confirm the check-in.",
-      attendee: lookup.attendee,
+      attendee: cached,
     };
   } finally {
     useRegistry.getState().markInflight(id, false);
@@ -277,43 +234,30 @@ export async function addAndCheckIn(input: {
     return { kind: "error", id: input.id, message: "ID, name, and country are required." };
   }
 
-  const { mode, gate, staffName } = useSettings.getState();
+  const { gate, staffName } = useSettings.getState();
   useRegistry.getState().markInflight(id, true);
   try {
-    if (mode === "demo") {
-      const written = await demoBackend.newEntry({
-        id,
-        name,
-        country,
-        gate,
-        checkedBy: staffName,
-      });
-      if (written.result === "already") {
-        useRegistry.getState().upsert(written.attendee);
-        return { kind: "already", attendee: written.attendee };
-      }
-      useRegistry.getState().upsert(written.attendee);
-      useRegistry.getState().pushRecent(written.attendee);
-      return { kind: "verified", attendee: written.attendee };
-    }
-
     const written = await sheetsBackend.newEntry(liveConfig(), {
       id,
       name,
       country,
-      gate,
-      checkedBy: staffName,
+      gate: gate || "Gate 1",
+      checkedBy: staffName || "Staff",
     });
+
     if (!written.ok) return { kind: "error", id, message: written.error };
+
     if (written.result === "already" && written.attendee) {
       useRegistry.getState().upsert(written.attendee);
       return { kind: "already", attendee: written.attendee };
     }
+
     if (written.result === "verified" && written.attendee) {
       useRegistry.getState().upsert(written.attendee);
       useRegistry.getState().pushRecent(written.attendee);
       return { kind: "verified", attendee: written.attendee };
     }
+
     return { kind: "error", id, message: "Google Sheets did not confirm the new entry." };
   } finally {
     useRegistry.getState().markInflight(id, false);

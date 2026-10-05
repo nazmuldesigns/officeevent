@@ -1,8 +1,13 @@
 export const APP_NAME = "NRB World Event";
 export const APP_SHORT_NAME = "NRB World";
-export const APP_TAGLINE = "Event Registration, Verification & Check-in System";
+export const APP_TAGLINE = "Official Attendee Verification & Check-in System";
 export const DEFAULT_ID_PREFIX = "NRB";
 export const DEFAULT_ID_YEAR = 2026;
+
+export const DEFAULT_SCRIPT_URL =
+  "https://script.google.com/macros/s/AKfycbyxLJDUhpyOIBshIuKL6wP57zA5-xB1aUVbcjbEGX4wJbAhQwGOwRfoxQMdCfl4vyHB/exec";
+
+export const ADMIN_LOCK_PIN = "465785";
 
 export const COUNTRIES = [
   "Bangladesh",
@@ -44,10 +49,4 @@ export const COUNTRIES = [
   "Mexico",
   "Turkey",
   "Egypt",
-] as const;
-
-export const SAMPLE_SCANS = [
-  { id: "NRB20260001", label: "Registered (Green)" },
-  { id: "NRB20260002", label: "Already In (Amber)" },
-  { id: "NRB20999999", label: "Unknown ID (Red)" },
 ] as const;

@@ -52,7 +52,7 @@ function DashboardPage() {
             <span>
               {lastSyncAt
                 ? `Last synced ${formatEntryTime(lastSyncAt)}`
-                : "Waiting for initial sync…"}
+                : "Synchronizing with Google Sheet…"}
             </span>
           </p>
         </div>
@@ -104,7 +104,7 @@ function DashboardPage() {
         />
       </div>
 
-      {/* Hall Fill Capacity Bar */}
+      {/* Hall Turnout Capacity Bar */}
       <section className="rounded-[24px] border border-border/80 bg-card p-5 shadow-[var(--shadow-border)]">
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -126,14 +126,14 @@ function DashboardPage() {
       {/* Station Config Box */}
       <section className="rounded-[24px] border border-border/80 bg-card p-5 shadow-[var(--shadow-border)]">
         <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
-          Active Station Configuration
+          This Station Configuration
         </h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <label className="block space-y-1.5">
-            <span className="text-xs font-semibold text-foreground/80">Gate Assigned</span>
+            <span className="text-xs font-semibold text-foreground/80">Assigned Gate</span>
             <select
               value={gate}
-              onChange={(event) => setGate(event.target.value as (typeof GATES)[number])}
+              onChange={(event) => setGate(event.target.value)}
               className="h-11 w-full rounded-xl border border-border/80 bg-muted px-3 text-sm font-semibold shadow-inner focus:outline-none focus:ring-2 focus:ring-primary"
             >
               {GATES.map((item) => (
@@ -155,13 +155,13 @@ function DashboardPage() {
         </div>
       </section>
 
-      {/* Recent Activity Feed */}
+      {/* Recent Activity Stream */}
       <section className="space-y-3">
         <div className="flex items-center justify-between px-1">
           <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
-            Recent Check-in Stream ({recent.length})
+            Live Check-in Stream ({recent.length})
           </h2>
-          <span className="text-[11px] font-medium text-muted-foreground">Auto-updates live</span>
+          <span className="text-[11px] font-medium text-muted-foreground">Synchronized across all stations</span>
         </div>
 
         {recent.length === 0 ? (
@@ -169,7 +169,7 @@ function DashboardPage() {
             <UserCheck className="mx-auto mb-2 size-8 opacity-40 text-primary" />
             <p className="text-sm font-medium">No check-ins recorded yet.</p>
             <p className="mt-1 text-xs text-muted-foreground/80">
-              Scan badges from the Check-in tab to see live activity stream.
+              Scan attendee badges from the Check-in tab to stream live updates.
             </p>
           </div>
         ) : (

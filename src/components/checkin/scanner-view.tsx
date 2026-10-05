@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, CameraOff, Keyboard, LoaderCircle, Zap } from "lucide-react";
+import { Camera, CameraOff, Keyboard, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SAMPLE_SCANS } from "@/lib/constants";
 import { playSound, unlockAudio } from "@/lib/audio/sounds";
 import { useSettings } from "@/lib/store";
 import { cn, normalizeId } from "@/lib/utils";
@@ -26,7 +25,6 @@ export function ScannerView({
   const [message, setMessage] = useState<string | null>(null);
   const [engine, setEngine] = useState<"native" | "html5" | "none">("none");
   const [manual, setManual] = useState("");
-  const mode = useSettings((s) => s.mode);
 
   useEffect(() => {
     onScanRef.current = onScan;
@@ -243,7 +241,7 @@ export function ScannerView({
                     <CameraOff className="size-7 opacity-80" />
                   </div>
                   <p className="max-w-[17rem] text-xs leading-relaxed text-muted-foreground">
-                    {message || "Camera feed idle. Use manual entry or sample scans below."}
+                    {message || "Camera feed ready. Point at barcode or use manual entry below."}
                   </p>
                 </div>
               )}
@@ -328,38 +326,6 @@ export function ScannerView({
           </Button>
         </div>
       </form>
-
-      {/* Demo Mode Quick Scans */}
-      {mode === "demo" ? (
-        <div className="rounded-[24px] border border-border/70 bg-card/60 p-4 backdrop-blur-sm">
-          <div className="mb-2.5 flex items-center gap-2 px-1 text-muted-foreground">
-            <Zap className="size-4 text-amber-400" />
-            <p className="text-xs font-bold uppercase tracking-[0.15em]">
-              Instant Demo Simulation Scans
-            </p>
-          </div>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            {SAMPLE_SCANS.map((sample) => (
-              <button
-                key={sample.id}
-                type="button"
-                onClick={() => {
-                  void unlockAudio();
-                  emit(sample.id);
-                }}
-                className="group flex flex-col rounded-xl border border-border/80 bg-card p-3 text-left shadow-sm transition-all duration-150 hover:border-primary/50 hover:bg-muted active:scale-[0.97]"
-              >
-                <span className="font-mono text-[13px] font-bold tracking-wider text-foreground group-hover:text-primary">
-                  {sample.id}
-                </span>
-                <span className="mt-0.5 text-[11px] font-medium text-muted-foreground">
-                  {sample.label}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

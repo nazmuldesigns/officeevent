@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useState } from "react";
-import { QrCode, ShieldCheck, Sparkles } from "lucide-react";
+import { ShieldCheck, Sparkles } from "lucide-react";
 import { NewEntryForm } from "@/components/checkin/new-entry-form";
 import { ResultOverlay } from "@/components/checkin/result-overlay";
 import { ScannerView } from "@/components/checkin/scanner-view";
@@ -19,7 +19,6 @@ type Phase =
 function CheckinPage() {
   const [phase, setPhase] = useState<Phase>({ name: "scan" });
   const soundEnabled = useSettings((s) => s.soundEnabled);
-  const mode = useSettings((s) => s.mode);
   const gate = useSettings((s) => s.gate);
 
   const handleScan = useCallback(
@@ -54,7 +53,7 @@ function CheckinPage() {
           </span>
         </div>
         <p className="max-w-md text-xs leading-relaxed text-muted-foreground sm:text-sm">
-          Scan attendee Code 128 barcode or enter manual ID for instant verification.
+          Point camera at Code 128 badge or type ID for instant verification.
         </p>
       </header>
 
@@ -79,15 +78,6 @@ function CheckinPage() {
             setPhase({ name: "result", result });
           }}
         />
-      ) : null}
-
-      {phase.name === "scan" && mode === "live" ? (
-        <div className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3.5 py-2.5 text-xs text-emerald-400">
-          <Sparkles className="size-4 shrink-0" />
-          <span>
-            Connected to Live Google Sheet. Check-ins are instantly logged with timestamp and gate info.
-          </span>
-        </div>
       ) : null}
 
       {phase.name === "result" ? (

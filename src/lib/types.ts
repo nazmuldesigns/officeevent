@@ -1,5 +1,17 @@
-export const GATES = ["Gate 1", "Gate 2", "Gate 3", "VIP"] as const;
-export type Gate = (typeof GATES)[number];
+export const GATES = [
+  "Gate 1",
+  "Gate 2",
+  "Gate 3",
+  "Gate 4",
+  "Gate 5",
+  "Gate 6",
+  "VIP Desk",
+  "Media Desk",
+  "Gate A",
+  "Gate B",
+] as const;
+
+export type Gate = (typeof GATES)[number] | string;
 
 export const REGISTRATION_STATUSES = ["REGISTERED", "NEW ENTRY"] as const;
 export type RegistrationStatus = (typeof REGISTRATION_STATUSES)[number];
@@ -18,7 +30,7 @@ export type Attendee = {
   checkedBy: string | null;
 };
 
-export type ConnectionMode = "demo" | "live";
+export type ConnectionMode = "live";
 
 export type SyncStatus = "idle" | "syncing" | "ok" | "error" | "offline";
 

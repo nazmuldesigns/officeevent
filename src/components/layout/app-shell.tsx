@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { Toaster } from "sonner";
 import { unlockAudio } from "@/lib/audio/sounds";
-import { APP_NAME, APP_SHORT_NAME } from "@/lib/constants";
+import { APP_NAME } from "@/lib/constants";
 import { syncRegistry, useRegistry, useSettings } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -25,7 +25,6 @@ const NAV = [
 export function AppShell({ children }: { children: ReactNode }) {
   const theme = useSettings((s) => s.theme);
   const setTheme = useSettings((s) => s.setTheme);
-  const mode = useSettings((s) => s.mode);
   const soundEnabled = useSettings((s) => s.soundEnabled);
   const setSoundEnabled = useSettings((s) => s.setSoundEnabled);
   const gate = useSettings((s) => s.gate);
@@ -38,13 +37,14 @@ export function AppShell({ children }: { children: ReactNode }) {
     document.documentElement.style.colorScheme = theme;
   }, [theme]);
 
+  // Real-time synchronization every 12 seconds across all devices
   useEffect(() => {
     void syncRegistry();
     const timer = window.setInterval(() => {
       void syncRegistry();
-    }, 45_000);
+    }, 12_000);
     return () => window.clearInterval(timer);
-  }, [mode]);
+  }, []);
 
   useEffect(() => {
     const unlock = () => {
@@ -90,14 +90,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   {gate}
                 </span>
                 <span>·</span>
-                <span
-                  className={cn(
-                    "font-semibold",
-                    mode === "live" ? "text-emerald-500" : "text-amber-500",
-                  )}
-                >
-                  {mode === "demo" ? "Demo Mode" : "Live Sheet"}
-                </span>
+                <span className="font-semibold text-emerald-400">Live Sheet Connected</span>
               </span>
             </div>
           </Link>
@@ -143,7 +136,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 "grid size-10 place-items-center rounded-xl border border-border/60 bg-card/60 text-muted-foreground transition-all duration-150 hover:bg-muted hover:text-foreground active:scale-95",
                 pathname === "/setup" && "border-primary/50 bg-primary/15 text-primary",
               )}
-              title="Settings & Sheet Setup"
+              title="Station & System Settings"
             >
               <Settings2 className="size-4.5" />
             </Link>
@@ -198,12 +191,12 @@ function SyncChip({ status }: { status: string }) {
     status === "syncing"
       ? "Syncing…"
       : status === "ok"
-        ? "Synced"
+        ? "Live Sheet"
         : status === "error"
           ? "Sync Error"
           : status === "offline"
             ? "Offline"
-            : "Idle";
+            : "Live";
   const tone =
     status === "ok"
       ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
