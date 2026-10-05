@@ -5,7 +5,7 @@ export const DEFAULT_ID_PREFIX = "NRB";
 export const DEFAULT_ID_YEAR = 2026;
 
 export const DEFAULT_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycbyxLJDUhpyOIBshIuKL6wP57zA5-xB1aUVbcjbEGX4wJbAhQwGOwRfoxQMdCfl4vyHB/exec";
+  "https://script.google.com/macros/s/AKfycbyAhFWoRb83y_ewHRxohSG3agui159daa-GIFdZNxchS-2YqA9vxXthdalrXLwrb-1r/exec";
 
 export const ADMIN_LOCK_PIN = "465785";
 

@@ -46,7 +46,7 @@ export const useSettings = create<SettingsState>()(
       setSoundEnabled: (soundEnabled) => set({ soundEnabled }),
       setTheme: (theme) => set({ theme }),
     }),
-    { name: "nrb-world-settings-v2" },
+    { name: "nrb-world-settings-v3" },
   ),
 );
 
