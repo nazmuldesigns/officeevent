@@ -515,48 +515,100 @@ function normalizeId_(value) {
 function issueCard_(p) {
   const key = normalizeId_(p.id);
   if (!key) return { ok: false, error: "Missing ID.", code: "config" };
+  const person = String(p.name || "").trim();
+  const from = String(p.country || "Bangladesh").trim();
   const pass = parsePassType_(p.passType);
+  const designation = String(p.designation || "").trim();
+  const organisation = String(p.organisation || p.organization || "").trim();
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
     const ss = getSpreadsheet_();
-    let log = ss.getSheetByName("ID Cards");
-    if (!log) {
-      log = ss.insertSheet("ID Cards");
-      const h = ["ID", "Name", "Designation", "Organisation", "Country", "Pass Type", "Status", "Timestamp"];
-      log.getRange(1, 1, 1, h.length).setValues([h]).setFontWeight("bold");
-      log.setFrozenRows(1);
-    }
-    const rowData = [
-      key,
-      String(p.name || ""),
-      String(p.designation || ""),
-      String(p.organisation || p.organization || ""),
-      String(p.country || ""),
-      pass,
-      String(p.status || "Card Issued"),
-      String(p.timestamp || new Date().toISOString()),
-    ];
-    const last = log.getLastRow();
-    let target = 0;
-    if (last >= 2) {
-      const ids = log.getRange(2, 1, last - 1, 1).getValues();
-      for (let i = 0; i < ids.length; i++) {
-        if (normalizeId_(ids[i][0]) === key) { target = i + 2; break; }
-      }
-    }
-    if (target) log.getRange(target, 1, 1, rowData.length).setValues([rowData]);
-    else log.appendRow(rowData);
 
-    let registered = false;
-    if (!findById_(key)) {
-      const sheet = ensureSheet_();
-      const row = [key, rowData[1], rowData[4], pass, "NOT ENTERED", "", "NOT ENTERED", "", "", ""];
-      sheet.appendRow(sheet.getLastColumn() >= 10 ? row : row.slice(0, 8));
-      registered = true;
+    // 1. PRIMARY: Ensure attendee is entered into the "Registrations" sheet (ready for gate scanning)
+    const regSheet = ensureSheet_();
+    const existing = findById_(key);
+    let isNewRegistration = false;
+
+    if (existing) {
+      const r = existing.row;
+      if (person) regSheet.getRange(r, 2).setValue(person);
+      if (from) regSheet.getRange(r, 3).setValue(from);
+      if (pass) regSheet.getRange(r, 4).setValue(pass);
+    } else {
+      const numCols = regSheet.getLastColumn();
+      if (numCols >= 10) {
+        regSheet.appendRow([
+          key,
+          person,
+          from,
+          pass,
+          "NOT ENTERED",
+          "",
+          "NOT ENTERED",
+          "",
+          "",
+          "",
+        ]);
+      } else {
+        regSheet.appendRow([
+          key,
+          person,
+          from,
+          pass,
+          "NOT ENTERED",
+          "",
+          "",
+          "",
+        ]);
+      }
+      isNewRegistration = true;
     }
+
+    // 2. SECONDARY: Record in "ID Cards" sheet (card generation history log)
+    try {
+      let log = ss.getSheetByName("ID Cards");
+      if (!log) {
+        log = ss.insertSheet("ID Cards");
+        const h = ["ID", "Name", "Designation", "Organisation", "Country", "Pass Type", "Status", "Timestamp"];
+        log.getRange(1, 1, 1, h.length).setValues([h]).setFontWeight("bold");
+        log.setFrozenRows(1);
+      }
+      const rowData = [
+        key,
+        person,
+        designation,
+        organisation,
+        from,
+        pass,
+        String(p.status || "Card Issued"),
+        String(p.timestamp || new Date().toISOString()),
+      ];
+      const last = log.getLastRow();
+      let target = 0;
+      if (last >= 2) {
+        const ids = log.getRange(2, 1, last - 1, 1).getValues();
+        for (let i = 0; i < ids.length; i++) {
+          if (normalizeId_(ids[i][0]) === key) { target = i + 2; break; }
+        }
+      }
+      if (target) log.getRange(target, 1, 1, rowData.length).setValues([rowData]);
+      else log.appendRow(rowData);
+    } catch (logErr) {
+      // Non-fatal if sheet permissions prevent adding new tab
+    }
+
     SpreadsheetApp.flush();
-    return { ok: true, result: "issued", id: key, registered: registered, updated: Boolean(target) };
+    return {
+      ok: true,
+      result: "issued",
+      id: key,
+      registered: true,
+      isNewRegistration: isNewRegistration,
+      message: isNewRegistration
+        ? "Card issued and added to Registrations sheet. Ready for scan!"
+        : "Card issued and updated in Registrations sheet.",
+    };
   } finally {
     lock.releaseLock();
   }

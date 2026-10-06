@@ -478,10 +478,10 @@ function SetupPage() {
 
         <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 space-y-2 text-xs">
           <p className="font-bold text-amber-400">
-            ⚠️ "Unknown action: undoCheckin" কেন দেখায় এবং কীভাবে ১ মিনিটে ফিক্স করবেন:
+            ⚠️ গুগল শিটের নতুন ফিচার (আইডি কার্ড অটো-রেজিস্ট্রেশন ও স্ক্যান আনডু) সক্রিয় করার উপায়:
           </p>
           <p className="text-amber-200/90 leading-relaxed">
-            গুগল ক্লাউডে আপনার পূর্বে ডিপ্লয় করা স্ক্রিপ্টটিতে এখনো পুরনো কোড চলছে, তাই সেটি ডিলিট/আনডু অ্যাকশনটি চিনতে পারছে না। নিচের ৪টি সহজ ধাপে নতুন কোডটি গুগল শিটে আপডেট করে নিন:
+            এই স্ক্রিপ্টে নতুন আইডি কার্ড তৈরির সাথে সাথে স্বয়ংক্রিয়ভাবে গুগল শিটের <strong>"Registrations"</strong> শিটে সংরক্ষিত হওয়া এবং ভুল স্ক্যান বাতিল (Undo Check-in) করার কোড অন্তর্ভুক্ত রয়েছে। নিচের ৪টি সহজ ধাপে কোডটি আপডেট করে নিন:
           </p>
           <div className="grid gap-2 pt-1 text-xs sm:grid-cols-2">
             <div className="rounded-xl bg-card/90 p-3 border border-border/60">

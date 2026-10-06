@@ -295,42 +295,69 @@ export const sheetsBackend = {
   },
 
   /**
-   * POST a "Card Issued" record. Uses a CORS-simple text/plain body; if the
-   * response can't be read cross-origin we fall back to no-cors (fire & forget).
+   * POST a "Card Issued" record. Inserts/updates in the "Registrations" sheet
+   * so the badge can be scanned at the gate immediately. Falls back to JSONP
+   * if cross-origin POST is restricted.
    */
   async issueCard(config: LiveConfig, payload: IssueCardPayload): Promise<IssueCardResult> {
     const url = config.scriptUrl?.trim();
     if (!url) return { ok: false, error: "Google Apps Script URL is missing." };
-    const body = JSON.stringify({
-      action: "issueCard",
-      ...(config.apiKey ? { key: config.apiKey } : {}),
-      ...payload,
-    });
-    const init: RequestInit = {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body,
-      redirect: "follow",
-    };
+
+    // 1. Try POST first
     try {
-      const res = await fetch(url, init);
-      const text = await res.text();
-      try {
-        const data = JSON.parse(text) as { ok: boolean; error?: string; registered?: boolean };
-        return data.ok
-          ? { ok: true, confirmed: true, registered: Boolean(data.registered) }
-          : { ok: false, error: data.error || "Sheet rejected the record." };
-      } catch {
-        return { ok: false, error: "Apps Script returned a non-JSON response. Check deployment access." };
+      const body = JSON.stringify({
+        action: "issueCard",
+        ...(config.apiKey ? { key: config.apiKey } : {}),
+        ...payload,
+      });
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body,
+        redirect: "follow",
+      });
+      if (res.ok) {
+        const text = await res.text();
+        try {
+          const data = JSON.parse(text) as { ok: boolean; error?: string; registered?: boolean };
+          if (data && typeof data === "object") {
+            return data.ok
+              ? { ok: true, confirmed: true, registered: Boolean(data.registered ?? true) }
+              : { ok: false, error: data.error || "Sheet rejected the record." };
+          }
+        } catch {
+          // If not standard JSON, try GET/JSONP
+        }
       }
     } catch {
-      try {
-        await fetch(url, { ...init, mode: "no-cors" });
-        return { ok: true, confirmed: false, registered: false };
-      } catch (error) {
-        return { ok: false, error: error instanceof Error ? error.message : "Network error." };
-      }
+      // Fall through to JSONP fallback
     }
+
+    // 2. Reliable GET / JSONP fallback
+    const getRes = await gasGet<{ result: string; registered?: boolean; isNewRegistration?: boolean; error?: string }>(config, {
+      action: "issueCard",
+      id: payload.id,
+      name: payload.name,
+      designation: payload.designation,
+      organisation: payload.organisation,
+      country: payload.country,
+      passType: payload.passType,
+      status: payload.status,
+      timestamp: payload.timestamp,
+    });
+
+    if (getRes.ok) {
+      return {
+        ok: true,
+        confirmed: true,
+        registered: Boolean(getRes.registered ?? getRes.isNewRegistration ?? true),
+      };
+    }
+
+    return {
+      ok: false,
+      error: getRes.error || "Failed to update Google Sheet Registrations.",
+    };
   },
 };
 

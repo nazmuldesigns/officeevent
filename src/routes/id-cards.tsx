@@ -20,7 +20,7 @@ import { sheetsBackend } from "@/lib/api/sheets-client";
 import { DEFAULT_SCRIPT_URL } from "@/lib/constants";
 import { composeCardSvg, DEFAULT_LAYOUT, svgToJpg300, type CardLayout } from "@/lib/idcard/compose";
 import { fileToTemplate, photoToDataUrl, templateDb, type CardTemplate } from "@/lib/idcard/templates";
-import { useRegistry, useSettings } from "@/lib/store";
+import { syncRegistry, useRegistry, useSettings } from "@/lib/store";
 import { PASS_TYPES, type PassType } from "@/lib/types";
 import { cn, downloadBlob, downloadText, normalizeId } from "@/lib/utils";
 
@@ -166,10 +166,16 @@ function IdCardPage() {
         },
       )
       .then((res) => {
-        if (!res.ok) setSync({ state: "error", msg: res.error });
-        else if (res.confirmed)
-          setSync({ state: "ok", msg: res.registered ? "Saved & added to Registrations" : "Saved to “ID Cards” sheet" });
-        else setSync({ state: "sent", msg: "Sent (confirmation not readable from browser)" });
+        if (!res.ok) {
+          setSync({ state: "error", msg: res.error });
+        } else {
+          setSync({
+            state: "ok",
+            msg: "গুগল শিটের 'Registrations' তালিকায় সংরক্ষিত হয়েছে! এখন গেটে স্ক্যান করা যাবে।",
+          });
+          toast.success(`ID ${id} সফলভাবে রেজিস্ট্রেশন শিটে যুক্ত হয়েছে!`);
+          void syncRegistry();
+        }
       });
   }
 
