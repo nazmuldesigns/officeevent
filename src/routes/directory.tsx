@@ -11,12 +11,13 @@ import {
   Tag,
   UserCheck,
   Users,
+  Undo2,
   X,
   XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useRegistry, useSettings } from "@/lib/store";
+import { undoCheckIn, useRegistry, useSettings } from "@/lib/store";
 import type { Attendee, PassType } from "@/lib/types";
 import { cn, downloadText, formatEntryTime } from "@/lib/utils";
 import { toast } from "sonner";
@@ -246,7 +247,7 @@ function DirectoryPage() {
               <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/60 text-xs">
                 {/* Day 1 Status */}
                 <div className={cn(
-                  "rounded-xl p-2 border",
+                  "rounded-xl p-2.5 border flex flex-col justify-between gap-1.5",
                   row.day1Status === "ENTERED"
                     ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-400"
                     : "bg-muted/50 border-border/50 text-muted-foreground",
@@ -259,14 +260,30 @@ function DirectoryPage() {
                       <span className="text-[10px] text-muted-foreground font-medium">Not Entered</span>
                     )}
                   </div>
-                  <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">
-                    {row.day1Time ? formatEntryTime(row.day1Time) : "—"}
-                  </p>
+                  <div className="flex items-center justify-between gap-1">
+                    <p className="font-mono text-[10px] text-muted-foreground">
+                      {row.day1Time ? formatEntryTime(row.day1Time) : "—"}
+                    </p>
+                    {row.day1Status === "ENTERED" && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const res = await undoCheckIn(row.id, 1);
+                          if (res.ok) toast.success(res.message);
+                        }}
+                        className="inline-flex items-center gap-1 rounded-md bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-bold text-rose-400 hover:bg-rose-500/25 active:scale-95 transition-all border border-rose-500/30"
+                        title="ভুল স্ক্যান বাতিল করুন (Reset to Not Entered)"
+                      >
+                        <Undo2 className="size-2.5" />
+                        <span>বাতিল</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Day 2 Status */}
                 <div className={cn(
-                  "rounded-xl p-2 border",
+                  "rounded-xl p-2.5 border flex flex-col justify-between gap-1.5",
                   row.day2Status === "ENTERED"
                     ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-400"
                     : "bg-muted/50 border-border/50 text-muted-foreground",
@@ -279,9 +296,25 @@ function DirectoryPage() {
                       <span className="text-[10px] text-muted-foreground font-medium">Not Entered</span>
                     )}
                   </div>
-                  <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">
-                    {row.day2Time ? formatEntryTime(row.day2Time) : "—"}
-                  </p>
+                  <div className="flex items-center justify-between gap-1">
+                    <p className="font-mono text-[10px] text-muted-foreground">
+                      {row.day2Time ? formatEntryTime(row.day2Time) : "—"}
+                    </p>
+                    {row.day2Status === "ENTERED" && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const res = await undoCheckIn(row.id, 2);
+                          if (res.ok) toast.success(res.message);
+                        }}
+                        className="inline-flex items-center gap-1 rounded-md bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-bold text-rose-400 hover:bg-rose-500/25 active:scale-95 transition-all border border-rose-500/30"
+                        title="ভুল স্ক্যান বাতিল করুন (Reset to Not Entered)"
+                      >
+                        <Undo2 className="size-2.5" />
+                        <span>বাতিল</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

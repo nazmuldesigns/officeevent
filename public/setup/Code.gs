@@ -80,6 +80,10 @@ function dispatch_(action, params) {
         params.checkedBy,
         params.day,
       );
+    case "undoCheckin":
+    case "resetCheckin":
+    case "deleteCheckin":
+      return undoCheckin_(params.id, params.day);
     default:
       return { ok: false, error: "Unknown action: " + action, code: "config" };
   }
@@ -192,6 +196,46 @@ function checkin_(id, gate, checkedBy, dayParam) {
     }
 
     return { ok: true, result: "verified", attendee: updated };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function undoCheckin_(id, dayParam) {
+  const key = normalizeId_(id);
+  if (!key) return { ok: false, error: "Missing ID.", code: "config" };
+  const targetDay = Number(dayParam) === 2 ? 2 : 1;
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    const found = findById_(key);
+    if (!found) return { ok: false, error: "Attendee ID not found in sheet.", code: "not_found" };
+
+    const sheet = found.sheet;
+    const numCols = sheet.getLastColumn();
+
+    if (numCols >= 10) {
+      if (targetDay === 1) {
+        sheet.getRange(found.row, 5).setValue("NOT ENTERED");
+        sheet.getRange(found.row, 6).setValue("");
+      } else {
+        sheet.getRange(found.row, 7).setValue("NOT ENTERED");
+        sheet.getRange(found.row, 8).setValue("");
+      }
+    } else {
+      sheet.getRange(found.row, 5).setValue("NOT ENTERED");
+      sheet.getRange(found.row, 6).setValue("");
+    }
+    SpreadsheetApp.flush();
+
+    const refreshed = findById_(key);
+    return {
+      ok: true,
+      result: "undone",
+      message: "Check-in undone successfully.",
+      attendee: refreshed ? refreshed.attendee : null,
+    };
   } finally {
     lock.releaseLock();
   }

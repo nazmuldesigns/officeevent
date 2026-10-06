@@ -276,4 +276,21 @@ export const sheetsBackend = {
       attendee: result.attendee ? asAttendee(result.attendee) : null,
     };
   },
+
+  async undoCheckIn(
+    config: LiveConfig,
+    input: { id: string; day: EventDay },
+  ) {
+    const result = await gasGet<{ result: string; attendee?: unknown; message?: string }>(config, {
+      action: "undoCheckin",
+      id: input.id,
+      day: String(input.day),
+    });
+    if (!result.ok) return result;
+    return {
+      ok: true as const,
+      message: result.message || "Check-in undone successfully.",
+      attendee: result.attendee ? asAttendee(result.attendee) : null,
+    };
+  },
 };

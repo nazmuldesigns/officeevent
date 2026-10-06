@@ -8,15 +8,18 @@ import {
   RefreshCw,
   Ticket,
   TrendingUp,
+  Undo2,
   UserCheck,
   UserPlus,
   Users,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { GATES } from "@/lib/types";
 import {
   computeStats,
   syncRegistry,
+  undoCheckIn,
   useRegistry,
   useSettings,
 } from "@/lib/store";
@@ -294,14 +297,29 @@ function DashboardPage() {
                     )}
                   </div>
                 </div>
-                <div className="shrink-0 text-right">
-                  <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-400">
-                    <CheckCircle2 className="size-3.5" />
-                    <span>Entered</span>
-                  </span>
-                  <p className="font-mono text-[11px] font-medium tabular-nums text-muted-foreground">
-                    {formatEntryTime(row.entryTime)}
-                  </p>
+                <div className="shrink-0 flex items-center gap-3 text-right">
+                  <div>
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-400">
+                      <CheckCircle2 className="size-3.5" />
+                      <span>Entered</span>
+                    </span>
+                    <p className="font-mono text-[11px] font-medium tabular-nums text-muted-foreground">
+                      {formatEntryTime(row.entryTime)}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const dayToUndo = (eventDay === 2 && row.day2Status === "ENTERED") ? 2 : (row.day1Status === "ENTERED" ? 1 : eventDay);
+                      const res = await undoCheckIn(row.id, dayToUndo as any);
+                      if (res.ok) toast.success(res.message);
+                    }}
+                    className="grid size-8 place-items-center rounded-xl bg-rose-500/15 text-rose-400 border border-rose-500/30 hover:bg-rose-500/25 active:scale-95 transition-all"
+                    title="ভুল স্ক্যান বাতিল করুন (Undo check-in)"
+                  >
+                    <Undo2 className="size-4" />
+                  </button>
                 </div>
               </li>
             ))}

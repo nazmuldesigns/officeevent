@@ -447,3 +447,65 @@ export async function addAndCheckIn(input: {
     useRegistry.getState().markInflight(id, false);
   }
 }
+
+/**
+ * Undo/Delete an accidental check-in for an attendee and revert status to NOT ENTERED.
+ */
+export async function undoCheckIn(
+  rawId: string,
+  day: EventDay,
+): Promise<{ ok: boolean; message: string }> {
+  const id = normalizeId(rawId);
+  if (!id) return { ok: false, message: "Invalid attendee ID." };
+
+  const attendees = useRegistry.getState().attendees;
+  const target = attendees.find((a) => a.id === id);
+  if (!target) return { ok: false, message: "Attendee not found in registry." };
+
+  const updated: Attendee = {
+    ...target,
+    day1Status: day === 1 ? "NOT ENTERED" : target.day1Status,
+    day1Time: day === 1 ? null : target.day1Time,
+    day2Status: day === 2 ? "NOT ENTERED" : target.day2Status,
+    day2Time: day === 2 ? null : target.day2Time,
+  };
+  const overallEntered = updated.day1Status === "ENTERED" || updated.day2Status === "ENTERED";
+  updated.entryStatus = overallEntered ? "ENTERED" : "NOT ENTERED";
+  updated.entryTime = updated.day2Time || updated.day1Time || null;
+
+  // Immediately update local reactive store & persistent cache
+  useRegistry.getState().upsert(updated);
+
+  // Clean recent list
+  if (!overallEntered) {
+    useRegistry.setState({
+      recent: useRegistry.getState().recent.filter((r) => r.id !== id),
+    });
+  } else {
+    useRegistry.getState().pushRecent(updated);
+  }
+
+  // Remove from offline queue if pending
+  useRegistry.setState({
+    offlineQueue: useRegistry.getState().offlineQueue.filter((q) => q.id !== id || q.day !== day),
+  });
+
+  // Dispatch undo to Google Sheets in background
+  try {
+    void sheetsBackend
+      .undoCheckIn(liveConfig(), { id, day })
+      .then((res) => {
+        if (res.ok) {
+          useRegistry.getState().setSync({ syncStatus: "ok", lastSyncAt: new Date().toISOString() });
+        }
+      })
+      .catch(() => {});
+  } catch {
+    /* silent background catch */
+  }
+
+  return {
+    ok: true,
+    message: `Check-in for ${id} (Day ${day}) has been reset back to Not Entered.`,
+  };
+}

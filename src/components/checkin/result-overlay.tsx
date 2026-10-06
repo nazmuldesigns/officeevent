@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
-import { Check, AlertTriangle, XCircle, ArrowRight, UserPlus, CalendarX2 } from "lucide-react";
+import { Check, AlertTriangle, XCircle, ArrowRight, UserPlus, CalendarX2, Undo2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { playSound } from "@/lib/audio/sounds";
+import { undoCheckIn, useSettings } from "@/lib/store";
 import type { CheckinResult } from "@/lib/types";
 import { cn, formatEntryTime } from "@/lib/utils";
 
@@ -226,6 +229,30 @@ export function ResultOverlay({
           >
             <UserPlus className="mr-2 size-5" />
             New Entry Walk-up
+          </Button>
+        ) : null}
+
+        {(kind === "verified" || kind === "already") && attendee ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="h-11 border-white/30 bg-black/35 font-bold text-rose-200 hover:bg-black/60 hover:text-white hover:border-rose-400 active:scale-95 transition-all text-xs"
+            onClick={async (e) => {
+              e.stopPropagation();
+              const dayToUndo = "day" in result ? result.day : useSettings.getState().eventDay;
+              const res = await undoCheckIn(attendee.id, dayToUndo);
+              if (res.ok) {
+                toast.success(res.message);
+                playSound("tick", true);
+                onDismiss();
+              } else {
+                toast.error(res.message);
+              }
+            }}
+          >
+            <Undo2 className="mr-1.5 size-4 text-amber-300" />
+            <span>ভুল স্ক্যান? এন্ট্রি বাতিল করুন (Undo Check-in)</span>
           </Button>
         ) : null}
 
