@@ -1,4 +1,5 @@
 import { encodeCode128B } from "./code128";
+import { generateSecuritySeal, generateSecurityToken } from "./security";
 import type { PassType } from "../types";
 
 export type Code128SvgOptions = {
@@ -82,7 +83,7 @@ export type BadgeCardOptions = {
 /**
  * Renders a full, printable, visually distinct vector ID card / badge with
  * vibrant pass-type color themes (Day 1 Sky Blue, Day 2 Purple, Both Days Gold VIP),
- * large typography, and centered Code 128 barcode.
+ * large typography, centered Code 128 barcode, and in-built cryptographic anti-counterfeiting seals.
  */
 export function renderBadgeCardSvg(options: BadgeCardOptions): string {
   const id = (options.id || "NRB20260001").trim().toUpperCase();
@@ -90,8 +91,11 @@ export function renderBadgeCardSvg(options: BadgeCardOptions): string {
   const country = (options.country || "Bangladesh").trim();
   const passType = options.passType || "Both Days";
 
+  const securitySeal = generateSecuritySeal(id, name);
+  const securityToken = generateSecurityToken(id, name);
+
   const width = 420;
-  const height = 640;
+  const height = 660;
 
   // Pass Theme Colors
   let headerColor1 = "#d97706"; // amber-600
@@ -173,25 +177,29 @@ export function renderBadgeCardSvg(options: BadgeCardOptions): string {
     `<path d="M 12 38 Q 12 12 38 12 L ${width - 38} 12 Q ${width - 12} 12 ${width - 12} 38 L ${width - 12} 135 L 12 135 Z" fill="url(#headerGrad)"/>`,
     ``,
     `<!-- Header Content -->`,
-    `<text x="${width / 2}" y="44" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif" font-size="12" font-weight="800" fill="#ffffff" opacity="0.9" letter-spacing="0.22em">NRB WORLD EVENT 2026</text>`,
-    `<text x="${width / 2}" y="78" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif" font-size="18" font-weight="900" fill="#ffffff" letter-spacing="0.06em">${passTitle}</text>`,
-    `<text x="${width / 2}" y="102" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif" font-size="11" font-weight="700" fill="#ffffff" opacity="0.92" letter-spacing="0.14em">${passSub}</text>`,
+    `<text x="${width / 2}" y="42" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif" font-size="11" font-weight="800" fill="#ffffff" opacity="0.9" letter-spacing="0.22em">NRB WORLD EVENT 2026</text>`,
+    `<text x="${width / 2}" y="74" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif" font-size="18" font-weight="900" fill="#ffffff" letter-spacing="0.06em">${passTitle}</text>`,
+    `<text x="${width / 2}" y="98" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif" font-size="11" font-weight="700" fill="#ffffff" opacity="0.92" letter-spacing="0.14em">${passSub}</text>`,
     ``,
     `<!-- Pass Type Ribbon Pill -->`,
-    `<rect x="${width / 2 - 90}" y="120" width="180" height="30" rx="15" ry="15" fill="${badgeBg}" stroke="${borderColor}" stroke-width="1.5"/>`,
-    `<text x="${width / 2}" y="140" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif" font-size="12" font-weight="800" fill="${badgeText}" letter-spacing="0.08em">${passType.toUpperCase()}</text>`,
+    `<rect x="${width / 2 - 90}" y="116" width="180" height="28" rx="14" ry="14" fill="${badgeBg}" stroke="${borderColor}" stroke-width="1.5"/>`,
+    `<text x="${width / 2}" y="135" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif" font-size="11" font-weight="800" fill="${badgeText}" letter-spacing="0.08em">${passType.toUpperCase()}</text>`,
     ``,
     `<!-- Attendee Information -->`,
-    `<text x="${width / 2}" y="200" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif" font-size="11" font-weight="700" fill="#64748b" letter-spacing="0.16em">DELEGATE / ATTENDEE</text>`,
-    `<text x="${width / 2}" y="238" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif" font-size="24" font-weight="900" fill="#0f172a" letter-spacing="-0.02em">${escapedName}</text>`,
-    `<text x="${width / 2}" y="268" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif" font-size="13" font-weight="700" fill="#475569" letter-spacing="0.04em">${escapedCountry}</text>`,
+    `<text x="${width / 2}" y="195" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif" font-size="11" font-weight="700" fill="#64748b" letter-spacing="0.16em">DELEGATE / ATTENDEE</text>`,
+    `<text x="${width / 2}" y="232" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif" font-size="24" font-weight="900" fill="#0f172a" letter-spacing="-0.02em">${escapedName}</text>`,
+    `<text x="${width / 2}" y="262" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif" font-size="13" font-weight="700" fill="#475569" letter-spacing="0.04em">${escapedCountry}</text>`,
+    ``,
+    `<!-- Anti-Counterfeiting Security Hash Pill -->`,
+    `<rect x="${width / 2 - 120}" y="280" width="240" height="22" rx="11" ry="11" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>`,
+    `<text x="${width / 2}" y="295" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" font-weight="700" fill="#475569" letter-spacing="0.12em">🔒 AUTH SEAL: ${securitySeal} · #${securityToken}</text>`,
     ``,
     `<!-- Divider Line -->`,
-    `<line x1="40" y1="295" x2="${width - 40}" y2="295" stroke="#e2e8f0" stroke-width="1.5" stroke-dasharray="4 4"/>`,
+    `<line x1="40" y1="315" x2="${width - 40}" y2="315" stroke="#e2e8f0" stroke-width="1.5" stroke-dasharray="4 4"/>`,
     ``,
     `<!-- Barcode Container Box -->`,
-    `<rect x="30" y="320" width="${width - 60}" height="190" rx="18" ry="18" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>`,
-    `<text x="${width / 2}" y="352" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif" font-size="11" font-weight="800" fill="#64748b" letter-spacing="0.16em">OFFICIAL ENTRY BARCODE</text>`,
+    `<rect x="30" y="330" width="${width - 60}" height="195" rx="18" ry="18" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>`,
+    `<text x="${width / 2}" y="360" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif" font-size="11" font-weight="800" fill="#64748b" letter-spacing="0.16em">OFFICIAL ENTRY BARCODE</text>`,
     ``,
     `<!-- Code 128 Barcode Elements -->`,
     `<g fill="#000000" shape-rendering="crispEdges">`,
@@ -199,8 +207,10 @@ export function renderBadgeCardSvg(options: BadgeCardOptions): string {
     `</g>`,
     `<text x="${width / 2}" y="${barcodeStartY + barH + 28}" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18" font-weight="800" fill="#0f172a" letter-spacing="0.12em">${escapedId}</text>`,
     ``,
+    `<!-- Anti-Forgery Microprint Ribbon -->`,
+    `<text x="${width / 2}" y="555" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="8.5" font-weight="700" fill="#94a3b8" letter-spacing="0.12em">AUTHENTIC OFFICIAL PERMIT • DO NOT DUPLICATE • NRB WORLD EVENT</text>`,
+    ``,
     `<!-- Security Badge Footer -->`,
-    `<rect x="12" y="${height - 70}" width="${width - 24}" height="42" rx="0" ry="0" fill="#f1f5f9"/>`,
     `<path d="M 12 ${height - 70} L ${width - 12} ${height - 70} L ${width - 12} ${height - 38} Q ${width - 12} ${height - 12} ${width - 38} ${height - 12} L 38 ${height - 12} Q 12 ${height - 12} 12 ${height - 38} Z" fill="#0f172a"/>`,
     `<text x="${width / 2}" y="${height - 32}" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif" font-size="10" font-weight="700" fill="#94a3b8" letter-spacing="0.15em">SCAN AT GATE CAMERA FOR ENTRY VERIFICATION</text>`,
     `</svg>`,
@@ -228,4 +238,5 @@ function escapeXml(value: string): string {
     return "&#39;";
   });
 }
+
 

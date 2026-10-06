@@ -1,19 +1,22 @@
-import { useEffect, useState } from "react";
-import { Check, AlertTriangle, XCircle, ArrowRight, UserPlus, CalendarX2, Undo2 } from "lucide-react";
+import { useEffect } from "react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  CalendarX2,
+  Camera,
+  Check,
+  RotateCcw,
+  Undo2,
+  UserPlus,
+  XCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { playSound } from "@/lib/audio/sounds";
+import { generateSecuritySeal } from "@/lib/barcode/security";
 import { undoCheckIn, useSettings } from "@/lib/store";
 import type { CheckinResult } from "@/lib/types";
 import { cn, formatEntryTime } from "@/lib/utils";
-
-const RETURN_MS = {
-  verified: 1200,
-  already: 1700,
-  invalid_day: 2400,
-  missing: 2600,
-  error: 2200,
-} as const;
 
 export function ResultOverlay({
   result,
@@ -25,23 +28,8 @@ export function ResultOverlay({
   onNewEntry: (id: string) => void;
 }) {
   const kind = result.kind;
-  const duration = RETURN_MS[kind];
-  const [remaining, setRemaining] = useState<number>(duration);
 
-  useEffect(() => {
-    const started = Date.now();
-    const tick = window.setInterval(() => {
-      const left = Math.max(0, duration - (Date.now() - started));
-      setRemaining(left);
-      if (left <= 0) {
-        window.clearInterval(tick);
-        onDismiss();
-      }
-    }, 60);
-    return () => window.clearInterval(tick);
-  }, [duration, onDismiss, result]);
-
-  // Handle keyboard ESC or Space for instant dismiss
+  // Handle keyboard ESC or Space or Enter for instant return to scanner
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
@@ -89,25 +77,12 @@ export function ResultOverlay({
   return (
     <div
       className={cn(
-        "result-enter fixed inset-0 z-50 flex flex-col px-5 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))]",
+        "result-enter fixed inset-0 z-50 flex flex-col justify-between px-5 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]",
         palette,
       )}
       role="status"
       aria-live="assertive"
-      onClick={(e) => {
-        if ((e.target as HTMLElement).tagName !== "BUTTON") {
-          onDismiss();
-        }
-      }}
     >
-      {/* Top Progress bar */}
-      <div className="absolute inset-x-0 top-0 h-1.5 bg-white/20" aria-hidden="true">
-        <div
-          className="progress-shrink h-full bg-white/90 shadow-sm"
-          style={{ ["--return-ms" as string]: `${duration}ms` }}
-        />
-      </div>
-
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center">
         {/* Status Icon Pop */}
         <div
@@ -196,6 +171,13 @@ export function ResultOverlay({
                     <dd className="font-semibold text-white truncate">{attendee.checkedBy}</dd>
                   </div>
                 ) : null}
+
+                <div className="col-span-2 pt-1 border-t border-white/10 flex items-center justify-between text-[11px] text-white/80 font-mono">
+                  <span>🔒 AUTH SEAL:</span>
+                  <span className="font-bold text-white bg-white/15 px-2 py-0.5 rounded-full border border-white/20">
+                    {generateSecuritySeal(attendee.id, attendee.name)}
+                  </span>
+                </div>
               </div>
             </div>
           ) : (
@@ -216,6 +198,7 @@ export function ResultOverlay({
         </div>
       </div>
 
+      {/* Persistent Bottom Action Controls */}
       <div className="mx-auto flex w-full max-w-md flex-col gap-2.5 pt-4">
         {kind === "missing" ? (
           <Button
@@ -256,17 +239,19 @@ export function ResultOverlay({
           </Button>
         ) : null}
 
+        {/* Primary Scan Next Button - Always stays until clicked */}
         <Button
-          variant="ghost"
+          variant="secondary"
           size="lg"
-          className="h-12 border border-white/20 bg-white/10 font-bold text-white hover:bg-white/20 active:scale-95 transition-all"
+          className="h-14 border border-white/40 bg-white font-extrabold text-slate-950 shadow-2xl hover:bg-white/95 active:scale-95 transition-all text-base tracking-wide"
           onClick={(e) => {
             e.stopPropagation();
             onDismiss();
           }}
         >
-          <span>Next Scan ({Math.max(1, Math.ceil(remaining / 1000))}s)</span>
-          <ArrowRight className="ml-2 size-4.5" />
+          <Camera className="mr-2 size-5 text-primary" />
+          <span>পরবর্তী স্ক্যান করুন (Scan Next)</span>
+          <ArrowRight className="ml-2 size-5" />
         </Button>
       </div>
     </div>
@@ -285,3 +270,4 @@ function StatusMark({ kind }: { kind: CheckinResult["kind"] }) {
   }
   return <XCircle className="size-10 stroke-[2.5] text-white" />;
 }
+
