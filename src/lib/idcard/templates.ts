@@ -103,3 +103,14 @@ export async function photoToDataUrl(file: File, max = 900): Promise<string> {
   c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
   return c.toDataURL("image/jpeg", 0.9);
 }
+
+/** Load the bundled NRB World Summit Dhaka 2026 sample template. */
+export async function loadDefaultSampleTemplate(passType: PassType): Promise<CardTemplate> {
+  const resp = await fetch("/templates/nrb-summit-sample.png");
+  if (!resp.ok) throw new Error("Built-in template not found.");
+  const blob = await resp.blob();
+  const file = new File([blob], "NRB_Summit_Dhaka_2026.png", { type: "image/png" });
+  const t = await fileToTemplate(file, passType);
+  await templateDb.put(t);
+  return t;
+}
