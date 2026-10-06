@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ADMIN_LOCK_PIN, DEFAULT_SCRIPT_URL } from "@/lib/constants";
+import { ADMIN_LOCK_PIN, CODE_GS_CONTENT, DEFAULT_SCRIPT_URL } from "@/lib/constants";
 import { playSound, unlockAudio } from "@/lib/audio/sounds";
 import {
   syncRegistry,
@@ -453,6 +453,62 @@ function SetupPage() {
               </tr>
             </tbody>
           </table>
+        </div>
+      </section>
+
+      {/* Google Apps Script Latest Code & Deployment Guide */}
+      <section className="space-y-3.5 rounded-[24px] border border-border/80 bg-card p-5 shadow-[var(--shadow-border)]">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 text-foreground">
+            <ShieldCheck className="size-4.5 text-primary" />
+            <h2 className="text-sm font-bold tracking-tight">Google Apps Script কোড আপডেট নির্দেশিকা</h2>
+          </div>
+          <Button
+            size="sm"
+            className="h-8 font-bold bg-primary text-primary-foreground shadow-md active:scale-95"
+            onClick={() => {
+              void navigator.clipboard.writeText(CODE_GS_CONTENT);
+              toast.success("সম্পূর্ণ Code.gs স্ক্রিপ্ট কপি হয়েছে! Google Apps Script-এ পেস্ট করে Deploy দিন।");
+            }}
+          >
+            <KeyRound className="mr-1.5 size-3.5" />
+            Copy Latest Code.gs Script
+          </Button>
+        </div>
+
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 space-y-2 text-xs">
+          <p className="font-bold text-amber-400">
+            ⚠️ "Unknown action: undoCheckin" কেন দেখায় এবং কীভাবে ১ মিনিটে ফিক্স করবেন:
+          </p>
+          <p className="text-amber-200/90 leading-relaxed">
+            গুগল ক্লাউডে আপনার পূর্বে ডিপ্লয় করা স্ক্রিপ্টটিতে এখনো পুরনো কোড চলছে, তাই সেটি ডিলিট/আনডু অ্যাকশনটি চিনতে পারছে না। নিচের ৪টি সহজ ধাপে নতুন কোডটি গুগল শিটে আপডেট করে নিন:
+          </p>
+          <div className="grid gap-2 pt-1 text-xs sm:grid-cols-2">
+            <div className="rounded-xl bg-card/90 p-3 border border-border/60">
+              <span className="font-bold text-primary block text-xs">ধাপ ১: কোড কপি করুন</span>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                ওপরের <strong>Copy Latest Code.gs Script</strong> বাটনে ক্লিক করে সম্পূর্ণ কোডটি কপি করুন।
+              </p>
+            </div>
+            <div className="rounded-xl bg-card/90 p-3 border border-border/60">
+              <span className="font-bold text-primary block text-xs">ধাপ ২: Apps Script এ পেস্ট করুন</span>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                গুগল শিট থেকে <strong>Extensions &gt; Apps Script</strong> এ গিয়ে `Code.gs` ফাইলের সব কোড মুছে পেস্ট করে <strong>Save (Ctrl+S)</strong> দিন।
+              </p>
+            </div>
+            <div className="rounded-xl bg-card/90 p-3 border border-border/60">
+              <span className="font-bold text-primary block text-xs">ধাপ ৩: Manage Deployments এ যান</span>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                ওপরের ডানপাশে <strong>Deploy &gt; Manage Deployments</strong> এ ক্লিক করুন এবং ✏️ <strong>Edit</strong> আইকনে চাপ দিন।
+              </p>
+            </div>
+            <div className="rounded-xl bg-card/90 p-3 border border-border/60">
+              <span className="font-bold text-emerald-400 block text-xs">ধাপ ৪: New version সিলেক্ট করে Deploy</span>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                <strong>Version</strong> ড্রপডাউন থেকে <strong>"New version"</strong> সিলেক্ট করে <strong>Deploy</strong> বাটনে চাপ দিলেই সাথে সাথে ডিলিট/আনডু অপশন শিটে সক্রিয় হয়ে যাবে!
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 

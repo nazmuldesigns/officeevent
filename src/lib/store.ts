@@ -532,6 +532,13 @@ export async function undoCheckIn(
       };
     } else {
       useRegistry.getState().setSync({ syncStatus: "error", syncError: res.error });
+      if (res.error.includes("Unknown action") || res.error.includes("undoCheckin")) {
+        return {
+          ok: false,
+          message:
+            "⚠️ Apps Script-এ পুরনো কোড চলছে। Settings পেজ থেকে 'Copy Latest Code.gs' বাটনে চাপ দিয়ে কোড কপি করে Apps Script-এ New version ডিপ্লয় করুন।",
+        };
+      }
       return {
         ok: false,
         message: `গুগল শিটে আপডেট ব্যর্থ হয়েছে: ${res.error}`,
