@@ -353,6 +353,109 @@ function SetupPage() {
         </div>
       </section>
 
+      {/* Google Sheet 10-Column Data Format Guide */}
+      <section className="space-y-3.5 rounded-[24px] border border-border/80 bg-card p-5 shadow-[var(--shadow-border)]">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-foreground">
+            <Database className="size-4.5 text-primary" />
+            <h2 className="text-sm font-bold tracking-tight">গুগল শিটের ১০টি কলামের তালিকা ও নিয়ম</h2>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs font-bold border-border/80"
+            onClick={() => {
+              const headers = "ID\tName\tCountry\tPass Type\tDay 1 Entry\tDay 1 Time\tDay 2 Entry\tDay 2 Time\tGate\tChecked By";
+              void navigator.clipboard.writeText(headers);
+              toast.success("১০টি কলামের হেডার কপি করা হয়েছে! গুগল শিটের ১ম সারিতে পেস্ট করুন।");
+            }}
+          >
+            Copy Sheet Headers
+          </Button>
+        </div>
+
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          সাইট বুঝতে পারে কোন ব্যক্তি কোন দিনের পাস পেয়েছে কারণ গুগল শিটের <strong>Col D (Pass Type)</strong>-এ সেটি উল্লেখ থাকে:
+        </p>
+
+        <div className="overflow-x-auto rounded-2xl border border-border/80 bg-muted/50">
+          <table className="w-full text-left text-xs">
+            <thead className="border-b border-border/80 bg-muted font-bold text-foreground">
+              <tr>
+                <th className="px-3 py-2.5">কলাম</th>
+                <th className="px-3 py-2.5">হেডার নাম</th>
+                <th className="px-3 py-2.5">বর্ণনা ও অনুমোদিত মান</th>
+                <th className="px-3 py-2.5">উদাহরণ</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/60 text-muted-foreground">
+              <tr>
+                <td className="px-3 py-2 font-mono font-bold text-sky-400">A (Col 1)</td>
+                <td className="px-3 py-2 font-bold text-foreground">ID</td>
+                <td className="px-3 py-2">ইউনিক মেম্বার আইডি (বারকোডেও এটি থাকে)</td>
+                <td className="px-3 py-2 font-mono text-emerald-400">NRB20260001</td>
+              </tr>
+              <tr>
+                <td className="px-3 py-2 font-mono font-bold text-sky-400">B (Col 2)</td>
+                <td className="px-3 py-2 font-bold text-foreground">Name</td>
+                <td className="px-3 py-2">মেহমানের নাম</td>
+                <td className="px-3 py-2">Tanvir Ahmed</td>
+              </tr>
+              <tr>
+                <td className="px-3 py-2 font-mono font-bold text-sky-400">C (Col 3)</td>
+                <td className="px-3 py-2 font-bold text-foreground">Country</td>
+                <td className="px-3 py-2">দেশ বা প্রতিষ্ঠান</td>
+                <td className="px-3 py-2">Bangladesh</td>
+              </tr>
+              <tr className="bg-primary/10">
+                <td className="px-3 py-2 font-mono font-black text-amber-400">D (Col 4)</td>
+                <td className="px-3 py-2 font-black text-foreground">Pass Type</td>
+                <td className="px-3 py-2 font-semibold text-foreground">
+                  <span className="text-sky-400">Day 1 Only</span> | <span className="text-purple-400">Day 2 Only</span> | <span className="text-amber-400">Both Days</span>
+                </td>
+                <td className="px-3 py-2 font-bold text-amber-400">Both Days</td>
+              </tr>
+              <tr>
+                <td className="px-3 py-2 font-mono font-bold text-sky-400">E (Col 5)</td>
+                <td className="px-3 py-2 font-bold text-foreground">Day 1 Entry</td>
+                <td className="px-3 py-2">দিন ১ এন্ট্রি স্ট্যাটাস (স্ক্যান করলে অটো আপডেট হয়)</td>
+                <td className="px-3 py-2 font-mono">ENTERED</td>
+              </tr>
+              <tr>
+                <td className="px-3 py-2 font-mono font-bold text-sky-400">F (Col 6)</td>
+                <td className="px-3 py-2 font-bold text-foreground">Day 1 Time</td>
+                <td className="px-3 py-2">দিন ১ এন্ট্রি টাইমস্ট্যাম্প (অটো আপডেট)</td>
+                <td className="px-3 py-2 font-mono">2026-10-06 09:30:00</td>
+              </tr>
+              <tr>
+                <td className="px-3 py-2 font-mono font-bold text-sky-400">G (Col 7)</td>
+                <td className="px-3 py-2 font-bold text-foreground">Day 2 Entry</td>
+                <td className="px-3 py-2">দিন ২ এন্ট্রি স্ট্যাটাস (স্ক্যান করলে অটো আপডেট হয়)</td>
+                <td className="px-3 py-2 font-mono">ENTERED</td>
+              </tr>
+              <tr>
+                <td className="px-3 py-2 font-mono font-bold text-sky-400">H (Col 8)</td>
+                <td className="px-3 py-2 font-bold text-foreground">Day 2 Time</td>
+                <td className="px-3 py-2">দিন ২ এন্ট্রি টাইমস্ট্যাম্প (অটো আপডেট)</td>
+                <td className="px-3 py-2 font-mono">2026-10-07 10:15:00</td>
+              </tr>
+              <tr>
+                <td className="px-3 py-2 font-mono font-bold text-sky-400">I (Col 9)</td>
+                <td className="px-3 py-2 font-bold text-foreground">Gate</td>
+                <td className="px-3 py-2">যে গেটে স্ক্যান করা হয়েছে</td>
+                <td className="px-3 py-2">Gate 1</td>
+              </tr>
+              <tr>
+                <td className="px-3 py-2 font-mono font-bold text-sky-400">J (Col 10)</td>
+                <td className="px-3 py-2 font-bold text-foreground">Checked By</td>
+                <td className="px-3 py-2">যে স্টাফ মেম্বার স্ক্যান করেছেন</td>
+                <td className="px-3 py-2">VIP Desk Officer</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       {/* Unlock PIN Modal */}
       {showPinModal && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 px-4 backdrop-blur-md">
