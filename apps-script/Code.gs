@@ -81,8 +81,11 @@ function dispatch_(action, params) {
         params.day,
       );
     case "undoCheckin":
+    case "undo":
     case "resetCheckin":
+    case "reset":
     case "deleteCheckin":
+    case "delete":
       return undoCheckin_(params.id, params.day);
     default:
       return { ok: false, error: "Unknown action: " + action, code: "config" };

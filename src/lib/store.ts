@@ -7,6 +7,7 @@ import type {
   CheckinResult,
   ConnectionMode,
   DashboardStats,
+  EntryStatus,
   EventDay,
   Gate,
   PassType,
@@ -85,24 +86,46 @@ export const useRegistry = create<RegistryState>()(
       syncError: null,
       inflight: {},
       hydrate: (rows) => {
-        const current = get().attendees;
-        const lookup = new Map<string, Attendee>();
-        for (const item of rows) lookup.set(item.id, item);
-        for (const item of current) {
-          const fromRemote = lookup.get(item.id);
-          if (fromRemote) {
-            if (item.day1Status === "ENTERED" && fromRemote.day1Status !== "ENTERED") {
-              lookup.set(item.id, { ...fromRemote, day1Status: "ENTERED", day1Time: item.day1Time });
-            }
-            if (item.day2Status === "ENTERED" && fromRemote.day2Status !== "ENTERED") {
-              lookup.set(item.id, { ...fromRemote, day2Status: "ENTERED", day2Time: item.day2Time });
-            }
-          }
+        const offlineQueue = get().offlineQueue;
+        const pendingMap = new Map<string, PendingCheckIn>();
+        for (const item of offlineQueue) {
+          pendingMap.set(`${item.id}_${item.day}`, item);
         }
-        const merged = Array.from(lookup.values());
+
+        const next: Attendee[] = rows.map((remoteItem) => {
+          const pendingD1 = pendingMap.get(`${remoteItem.id}_1`);
+          const pendingD2 = pendingMap.get(`${remoteItem.id}_2`);
+
+          let d1Status = remoteItem.day1Status;
+          let d1Time = remoteItem.day1Time;
+          let d2Status = remoteItem.day2Status;
+          let d2Time = remoteItem.day2Time;
+
+          if (pendingD1) {
+            d1Status = "ENTERED";
+            d1Time = pendingD1.time;
+          }
+          if (pendingD2) {
+            d2Status = "ENTERED";
+            d2Time = pendingD2.time;
+          }
+
+          const overall: EntryStatus =
+            d1Status === "ENTERED" || d2Status === "ENTERED" ? "ENTERED" : "NOT ENTERED";
+          return {
+            ...remoteItem,
+            day1Status: d1Status,
+            day1Time: d1Time,
+            day2Status: d2Status,
+            day2Time: d2Time,
+            entryStatus: overall,
+            entryTime: d2Time || d1Time,
+          };
+        });
+
         set({
-          attendees: merged,
-          recent: merged
+          attendees: next,
+          recent: next
             .filter((row) => (row.day1Status === "ENTERED" || row.day2Status === "ENTERED") && row.entryTime)
             .sort((a, b) => (b.entryTime ?? "").localeCompare(a.entryTime ?? ""))
             .slice(0, 30),
@@ -450,6 +473,7 @@ export async function addAndCheckIn(input: {
 
 /**
  * Undo/Delete an accidental check-in for an attendee and revert status to NOT ENTERED.
+ * Directly updates Google Sheets and local state.
  */
 export async function undoCheckIn(
   rawId: string,
@@ -462,6 +486,12 @@ export async function undoCheckIn(
   const target = attendees.find((a) => a.id === id);
   if (!target) return { ok: false, message: "Attendee not found in registry." };
 
+  // 1. Immediately remove from offline queue if pending
+  useRegistry.setState({
+    offlineQueue: useRegistry.getState().offlineQueue.filter((q) => !(q.id === id && q.day === day)),
+  });
+
+  // 2. Optimistically update local reactive store & persistent cache
   const updated: Attendee = {
     ...target,
     day1Status: day === 1 ? "NOT ENTERED" : target.day1Status,
@@ -473,7 +503,6 @@ export async function undoCheckIn(
   updated.entryStatus = overallEntered ? "ENTERED" : "NOT ENTERED";
   updated.entryTime = updated.day2Time || updated.day1Time || null;
 
-  // Immediately update local reactive store & persistent cache
   useRegistry.getState().upsert(updated);
 
   // Clean recent list
@@ -485,27 +514,36 @@ export async function undoCheckIn(
     useRegistry.getState().pushRecent(updated);
   }
 
-  // Remove from offline queue if pending
-  useRegistry.setState({
-    offlineQueue: useRegistry.getState().offlineQueue.filter((q) => q.id !== id || q.day !== day),
-  });
-
-  // Dispatch undo to Google Sheets in background
+  // 3. Dispatch undo to Google Sheets and await confirmation
   try {
-    void sheetsBackend
-      .undoCheckIn(liveConfig(), { id, day })
-      .then((res) => {
-        if (res.ok) {
-          useRegistry.getState().setSync({ syncStatus: "ok", lastSyncAt: new Date().toISOString() });
-        }
-      })
-      .catch(() => {});
-  } catch {
-    /* silent background catch */
+    const res = await sheetsBackend.undoCheckIn(liveConfig(), { id, day });
+    if (res.ok) {
+      if (res.attendee) {
+        useRegistry.getState().upsert(res.attendee);
+      }
+      useRegistry.getState().setSync({
+        syncStatus: "ok",
+        lastSyncAt: new Date().toISOString(),
+        syncError: null,
+      });
+      return {
+        ok: true,
+        message: `গুগল শিট থেকে ${id} (দিন ${day}) এর এন্ট্রি বাতিল করা হয়েছে (NOT ENTERED)।`,
+      };
+    } else {
+      useRegistry.getState().setSync({ syncStatus: "error", syncError: res.error });
+      return {
+        ok: false,
+        message: `গুগল শিটে আপডেট ব্যর্থ হয়েছে: ${res.error}`,
+      };
+    }
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Network request failed";
+    useRegistry.getState().setSync({ syncStatus: "offline", syncError: msg });
+    return {
+      ok: false,
+      message: `গুগল শিটে সংযোগ করা যায়নি (${msg})।`,
+    };
   }
-
-  return {
-    ok: true,
-    message: `Check-in for ${id} (Day ${day}) has been reset back to Not Entered.`,
-  };
 }
+
