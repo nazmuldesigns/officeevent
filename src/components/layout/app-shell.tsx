@@ -3,6 +3,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Barcode,
   Calendar,
+  IdCard,
   LayoutDashboard,
   Maximize,
   Minimize,
@@ -24,6 +25,7 @@ const NAV = [
   { to: "/", label: "Check-in", icon: ScanLine },
   { to: "/directory", label: "Directory", icon: Users },
   { to: "/generator", label: "Barcodes", icon: Barcode },
+  { to: "/id-cards", label: "ID Cards", icon: IdCard },
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
 ] as const;
 
@@ -212,9 +214,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         {children}
       </main>
 
-      {/* 4-Tab Bottom Navigation Bar */}
+      {/* 5-Tab Bottom Navigation Bar */}
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-border/80 bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
-        <div className="mx-auto grid max-w-4xl grid-cols-4 gap-1.5 px-2.5 py-2">
+        <div className="mx-auto grid max-w-4xl grid-cols-5 gap-1 px-2 py-2">
           {NAV.map((item) => {
             const active = pathname === item.to;
             const Icon = item.icon;

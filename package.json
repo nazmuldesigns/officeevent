@@ -54,6 +54,7 @@
     "date-fns": "^4.0.0",
     "html5-qrcode": "^2.3.8",
     "jose": "6.2.9",
+    "jsbarcode": "^3.12.3",
     "jszip": "^3.10.2",
     "kysely": "^0.28.5",
     "lightningcss": "^1.28.0",

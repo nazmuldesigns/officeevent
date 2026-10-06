@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import JSZip from "jszip";
 import {
@@ -49,16 +49,25 @@ function GeneratorPage() {
 
   return (
     <div className="space-y-5">
-      <header className="px-1">
-        <div className="flex items-center gap-2">
-          <Barcode className="size-6 text-primary" />
-          <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
-            Event Badge & Barcode Studio
-          </h1>
+      <header className="flex flex-col gap-2 px-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <Barcode className="size-6 text-primary" />
+            <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
+              Event Badge & Barcode Studio
+            </h1>
+          </div>
+          <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground sm:text-sm">
+            অফিসিয়াল কালার ব্যাজ এবং কোড ১২৮ বারকোড জেনারেটর — ৩টি আলাদা পাস স্টাইল (Day 1, Day 2 & VIP All Access) এবং নকল-প্রতিরোধী ডিজিটাল সিকিউরিটি সিল সহ।
+          </p>
         </div>
-        <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground sm:text-sm">
-          অফিসিয়াল কালার ব্যাজ এবং কোড ১২৮ বারকোড জেনারেটর — ৩টি আলাদা পাস স্টাইল (Day 1, Day 2 & VIP All Access) এবং নকল-প্রতিরোধী ডিজিটাল সিকিউরিটি সিল সহ।
-        </p>
+        <Link
+          to="/id-cards"
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-3.5 text-xs font-bold text-primary shadow-sm transition hover:bg-primary/20 active:scale-95 shrink-0"
+        >
+          <IdCard className="size-4" />
+          <span>Vector ID Card Maker</span>
+        </Link>
       </header>
 
       {/* Security & Verification Banner */}

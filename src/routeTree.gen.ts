@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as DirectoryRouteImport } from './routes/directory'
 import { Route as GeneratorRouteImport } from './routes/generator'
+import { Route as IdCardsRouteImport } from './routes/id-cards'
 import { Route as SetupRouteImport } from './routes/setup'
 
 const IndexRoute = IndexRouteImport.update({
@@ -35,6 +36,11 @@ const GeneratorRoute = GeneratorRouteImport.update({
   path: '/generator',
   getParentRoute: () => rootRouteImport,
 } as any)
+const IdCardsRoute = IdCardsRouteImport.update({
+  id: '/id-cards',
+  path: '/id-cards',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SetupRoute = SetupRouteImport.update({
   id: '/setup',
   path: '/setup',
@@ -46,6 +52,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/directory': typeof DirectoryRoute
   '/generator': typeof GeneratorRoute
+  '/id-cards': typeof IdCardsRoute
   '/setup': typeof SetupRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +60,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/directory': typeof DirectoryRoute
   '/generator': typeof GeneratorRoute
+  '/id-cards': typeof IdCardsRoute
   '/setup': typeof SetupRoute
 }
 export interface FileRoutesById {
@@ -61,14 +69,23 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/directory': typeof DirectoryRoute
   '/generator': typeof GeneratorRoute
+  '/id-cards': typeof IdCardsRoute
   '/setup': typeof SetupRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/directory' | '/generator' | '/setup'
+  fullPaths:
+    '/' | '/dashboard' | '/directory' | '/generator' | '/id-cards' | '/setup'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/directory' | '/generator' | '/setup'
-  id: '__root__' | '/' | '/dashboard' | '/directory' | '/generator' | '/setup'
+  to: '/' | '/dashboard' | '/directory' | '/generator' | '/id-cards' | '/setup'
+  id:
+    | '__root__'
+    | '/'
+    | '/dashboard'
+    | '/directory'
+    | '/generator'
+    | '/id-cards'
+    | '/setup'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -76,6 +93,7 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   DirectoryRoute: typeof DirectoryRoute
   GeneratorRoute: typeof GeneratorRoute
+  IdCardsRoute: typeof IdCardsRoute
   SetupRoute: typeof SetupRoute
 }
 
@@ -109,6 +127,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GeneratorRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/id-cards': {
+      id: '/id-cards'
+      path: '/id-cards'
+      fullPath: '/id-cards'
+      preLoaderRoute: typeof IdCardsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/setup': {
       id: '/setup'
       path: '/setup'
@@ -124,6 +149,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   DirectoryRoute: DirectoryRoute,
   GeneratorRoute: GeneratorRoute,
+  IdCardsRoute: IdCardsRoute,
   SetupRoute: SetupRoute,
 }
 export const routeTree = rootRouteImport

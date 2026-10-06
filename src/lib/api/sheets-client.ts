@@ -293,4 +293,59 @@ export const sheetsBackend = {
       attendee: result.attendee ? asAttendee(result.attendee) : null,
     };
   },
+
+  /**
+   * POST a "Card Issued" record. Uses a CORS-simple text/plain body; if the
+   * response can't be read cross-origin we fall back to no-cors (fire & forget).
+   */
+  async issueCard(config: LiveConfig, payload: IssueCardPayload): Promise<IssueCardResult> {
+    const url = config.scriptUrl?.trim();
+    if (!url) return { ok: false, error: "Google Apps Script URL is missing." };
+    const body = JSON.stringify({
+      action: "issueCard",
+      ...(config.apiKey ? { key: config.apiKey } : {}),
+      ...payload,
+    });
+    const init: RequestInit = {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body,
+      redirect: "follow",
+    };
+    try {
+      const res = await fetch(url, init);
+      const text = await res.text();
+      try {
+        const data = JSON.parse(text) as { ok: boolean; error?: string; registered?: boolean };
+        return data.ok
+          ? { ok: true, confirmed: true, registered: Boolean(data.registered) }
+          : { ok: false, error: data.error || "Sheet rejected the record." };
+      } catch {
+        return { ok: false, error: "Apps Script returned a non-JSON response. Check deployment access." };
+      }
+    } catch {
+      try {
+        await fetch(url, { ...init, mode: "no-cors" });
+        return { ok: true, confirmed: false, registered: false };
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : "Network error." };
+      }
+    }
+  },
 };
+
+export type IssueCardPayload = {
+  id: string;
+  name: string;
+  designation: string;
+  organisation: string;
+  country: string;
+  passType: PassType;
+  status: "Card Issued";
+  timestamp: string;
+};
+
+export type IssueCardResult =
+  | { ok: true; confirmed: boolean; registered: boolean }
+  | { ok: false; error: string };
+

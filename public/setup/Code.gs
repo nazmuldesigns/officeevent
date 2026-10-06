@@ -41,13 +41,19 @@ function doPost(e) {
 }
 
 function handleRequest(e) {
-  const params = (e && e.parameter) || {};
+  let params = Object.assign({}, (e && e.parameter) || {});
+  if (e && e.postData && e.postData.contents) {
+    try {
+      const body = JSON.parse(e.postData.contents);
+      if (body && typeof body === "object") params = Object.assign(params, body);
+    } catch (err) { /* non-JSON body ignored */ }
+  }
   const callback = params.callback;
   try {
     if (API_KEY && params.key !== API_KEY) {
       return respond_({ ok: false, error: "Invalid API key.", code: "auth" }, callback);
     }
-    const action = String(params.action || "health");
+    const action = String(params.action || (params.status === "Card Issued" ? "issueCard" : "health"));
     const payload = dispatch_(action, params);
     return respond_(payload, callback);
   } catch (error) {
@@ -87,6 +93,8 @@ function dispatch_(action, params) {
     case "deleteCheckin":
     case "delete":
       return undoCheckin_(params.id, params.day);
+    case "issueCard":
+      return issueCard_(params);
     default:
       return { ok: false, error: "Unknown action: " + action, code: "config" };
   }
@@ -453,6 +461,56 @@ function normalizeId_(value) {
     .trim()
     .toUpperCase()
     .replace(/\s+/g, "");
+}
+
+function issueCard_(p) {
+  const key = normalizeId_(p.id);
+  if (!key) return { ok: false, error: "Missing ID.", code: "config" };
+  const pass = parsePassType_(p.passType);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    const ss = getSpreadsheet_();
+    let log = ss.getSheetByName("ID Cards");
+    if (!log) {
+      log = ss.insertSheet("ID Cards");
+      const h = ["ID", "Name", "Designation", "Organisation", "Country", "Pass Type", "Status", "Timestamp"];
+      log.getRange(1, 1, 1, h.length).setValues([h]).setFontWeight("bold");
+      log.setFrozenRows(1);
+    }
+    const rowData = [
+      key,
+      String(p.name || ""),
+      String(p.designation || ""),
+      String(p.organisation || p.organization || ""),
+      String(p.country || ""),
+      pass,
+      String(p.status || "Card Issued"),
+      String(p.timestamp || new Date().toISOString()),
+    ];
+    const last = log.getLastRow();
+    let target = 0;
+    if (last >= 2) {
+      const ids = log.getRange(2, 1, last - 1, 1).getValues();
+      for (let i = 0; i < ids.length; i++) {
+        if (normalizeId_(ids[i][0]) === key) { target = i + 2; break; }
+      }
+    }
+    if (target) log.getRange(target, 1, 1, rowData.length).setValues([rowData]);
+    else log.appendRow(rowData);
+
+    let registered = false;
+    if (!findById_(key)) {
+      const sheet = ensureSheet_();
+      const row = [key, rowData[1], rowData[4], pass, "NOT ENTERED", "", "NOT ENTERED", "", "", ""];
+      sheet.appendRow(sheet.getLastColumn() >= 10 ? row : row.slice(0, 8));
+      registered = true;
+    }
+    SpreadsheetApp.flush();
+    return { ok: true, result: "issued", id: key, registered: registered, updated: Boolean(target) };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function respond_(obj, callback) {
